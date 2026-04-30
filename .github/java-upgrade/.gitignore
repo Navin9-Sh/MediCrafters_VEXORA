@@ -1,0 +1,97 @@
+# ===============================
+# GENERAL
+# ===============================
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# ===============================
+# JAVA / SPRING BOOT
+# ===============================
+/backend/target/
+/backend/*.log
+/backend/.mvn/wrapper/maven-wrapper.jar
+/backend/.idea/
+/backend/*.iml
+
+# ===============================
+# ANDROID
+# ===============================
+/android-app/.gradle/
+/android-app/build/
+/android-app/local.properties
+/android-app/.idea/
+/android-app/*.iml
+/android-app/captures/
+/android-app/.externalNativeBuild/
+/android-app/.cxx/
+
+# ===============================
+# PYTHON (AI SERVICE)
+# ===============================
+/ai-service/__pycache__/
+/ai-service/*.pyc
+/ai-service/*.pyo
+/ai-service/*.pyd
+/ai-service/.Python
+/ai-service/env/
+/ai-service/venv/
+/ai-service/.venv/
+/ai-service/.env
+/ai-service/.env.*
+
+# ===============================
+# NODE (if added later)
+# ===============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===============================
+# DOCKER
+# ===============================
+docker/*.log
+docker-compose.override.yml
+
+# ===============================
+# ENV & SECRETS
+# ===============================
+.env
+.env.*
+*.env
+*.key
+*.pem
+*.crt
+secrets/
+config/*.yml
+
+# ===============================
+# DATABASE
+# ===============================
+*.db
+*.sqlite
+*.sqlite3
+
+# ===============================
+# IDEs
+# ===============================
+.vscode/
+.idea/
+*.iml
+
+# ===============================
+# TEST / COVERAGE
+# ===============================
+coverage/
+*.cover
+*.py,cover
+
+# ===============================
+# MISC
+# ===============================
+*.jar
+*.war
+*.ear

@@ -1,0 +1,131 @@
+spring:
+  application:
+    name: clinical-system-backend
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfiguration
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/clinical_db
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+    open-in-view: false
+
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/clinical_chat}
+      database: clinical_chat
+      auto-index-creation: true
+
+    redis:
+      enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 20MB
+
+  cache:
+    type: none
+
+# JWT Configuration
+application:
+  jwt:
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    expiration: 900000          # 15 minutes
+    refresh-expiration: 604800000  # 7 days
+
+  firebase:
+    config-path: ${FIREBASE_CONFIG_PATH:classpath:firebase-service-account.json}
+
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:rzp_test_key}
+    key-secret: ${RAZORPAY_KEY_SECRET:rzp_test_secret}
+    webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:webhook_secret}
+
+  aws:
+    access-key: ${AWS_ACCESS_KEY:}
+    secret-key: ${AWS_SECRET_KEY:}
+    region: ${AWS_REGION:ap-south-1}
+    s3:
+      bucket: ${S3_BUCKET:clinical-system-files}
+      base-url: ${S3_BASE_URL:https://clinical-system-files.s3.ap-south-1.amazonaws.com}
+
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:8080}
+
+  rate-limiting:
+    enabled: true
+    default-capacity: 100
+    default-refill-per-minute: 100
+    auth-capacity: 20
+    auth-refill-per-minute: 20
+
+  ai-service:
+    base-url: ${AI_SERVICE_URL:http://localhost:8001}
+    enabled: ${AI_SERVICE_ENABLED:false}
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+logging:
+  level:
+    com.clinicalsystem: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
