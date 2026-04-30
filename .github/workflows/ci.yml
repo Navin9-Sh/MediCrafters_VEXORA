@@ -60,7 +60,7 @@ jobs:
           cache: 'maven'
 
       - name: Run tests
-        run: ./mvnw verify -Dspring.profiles.active=test
+        run: mvn verify -Dspring.profiles.active=test
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/clinical_test
           SPRING_DATASOURCE_USERNAME: test_user
@@ -76,7 +76,7 @@ jobs:
           path: backend/target/surefire-reports/
 
       - name: Build JAR
-        run: ./mvnw package -DskipTests -q
+        run: mvn package -DskipTests -q
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v4
