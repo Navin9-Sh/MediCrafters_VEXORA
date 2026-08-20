@@ -15,7 +15,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/clinical_db
       SPRING_DATASOURCE_USERNAME: clinical_user
       SPRING_DATASOURCE_PASSWORD: clinical_pass
-      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/clinical_chat
+      SPRING_DATA_MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/clinical_chat}
       SPRING_REDIS_HOST: redis
       SPRING_REDIS_PORT: 6379
       APP_JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-in-prod-min-256-bits}

@@ -9,26 +9,29 @@ plugins {
 }
 
 android {
-    namespace = "com.clinicalsystem"
+    namespace = "com.mediwise"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.clinicalsystem"
+        applicationId = "com.mediwise"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
-        buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/\"")
-        buildConfigField("String", "WS_URL", "\"ws://10.0.2.2:8080/ws\"")
+        buildConfigField("String", "BASE_URL", "\"http://localhost:8080/\"")
+        buildConfigField("String", "WS_URL", "\"ws://localhost:8080/ws\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"REPLACE_WITH_FIREBASE_WEB_CLIENT_ID\"")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("String", "BASE_URL", "\"https://api.clinicalsystem.com/\"")
             buildConfigField("String", "WS_URL", "\"wss://api.clinicalsystem.com/ws\"")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"REPLACE_WITH_FIREBASE_WEB_CLIENT_ID\"")
         }
     }
 
@@ -44,6 +47,18 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+afterEvaluate {
+    tasks.withType<JavaCompile>().configureEach {
+        val taskName = name
+        if (taskName.startsWith("compile") && taskName.endsWith("JavaWithJavac")) {
+            val variant = taskName.removePrefix("compile").removeSuffix("JavaWithJavac").replaceFirstChar { it.lowercase() }
+            val kotlinClassesDir = layout.buildDirectory.dir("tmp/kotlin-classes/$variant")
+            val currentClasspath = classpath
+            classpath = if (currentClasspath != null) currentClasspath + files(kotlinClassesDir) else files(kotlinClassesDir)
+        }
     }
 }
 
@@ -95,6 +110,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+    implementation(libs.play.services.auth)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

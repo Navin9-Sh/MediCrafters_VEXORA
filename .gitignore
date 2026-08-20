@@ -26,6 +26,28 @@ android-app/captures/
 android-app/.externalNativeBuild/
 android-app/.cxx/
 
+# ─── CREDENTIALS & SECRETS (never commit these) ───────────────────────────
+# Firebase service account key (backend)
+backend/src/main/resources/firebase-service-account.json
+# Google services config (Android — contains API keys)
+android-app/app/google-services.json
+# Backend environment files with real secrets
+backend/.env
+backend/.env.local
+# Admin panel environment files
+mediwise-admin/.env
+mediwise-admin/.env.local
+# Any generic .env files at root level
+.env
+.env.local
+.env.production
+# Keystore files (Android signing)
+*.jks
+*.keystore
+*.p12
+*.pfx
+# ──────────────────────────────────────────────────────────────────────────
+
 # Java/Maven (Backend)
 backend/target/
 backend/*.log
@@ -37,6 +59,10 @@ backend/release.properties
 backend/dependency-reduced-pom.xml
 backend/buildNumber.properties
 backend/.mvn/timing.properties
+
+# Admin Panel (React/Vite)
+mediwise-admin/node_modules/
+mediwise-admin/dist/
 
 # Logs and databases
 *.log

@@ -6,7 +6,7 @@ spring:
     exclude:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-      - org.redisson.spring.starter.RedissonAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
 
   datasource:
     url: jdbc:postgresql://localhost:5432/clinical_db
@@ -21,7 +21,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
@@ -34,7 +34,7 @@ spring:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/clinical_chat}
       database: clinical_chat
-      auto-index-creation: true
+      auto-index-creation: false
 
     redis:
       enabled: false

@@ -1,0 +1,95 @@
+package com.mediwise.data.remote.api
+
+import com.mediwise.data.remote.dto.*
+import retrofit2.http.*
+
+interface AuthApi {
+    @POST("api/v1/auth/register")
+    suspend fun register(@Body request: RegisterRequestDto): ApiResponseDto<AuthResponseDto>
+
+    @POST("api/v1/auth/login")
+    suspend fun login(@Body request: LoginRequestDto): ApiResponseDto<AuthResponseDto>
+
+    @POST("api/v1/auth/refresh")
+    suspend fun refresh(@Header("X-Refresh-Token") refreshToken: String): ApiResponseDto<AuthResponseDto>
+
+    @POST("api/v1/auth/logout")
+    suspend fun logout(@Header("Authorization") authHeader: String): ApiResponseDto<Unit>
+}
+
+interface DoctorApi {
+    @GET("api/v1/doctors")
+    suspend fun getDoctors(
+        @Query("search") search: String? = null,
+        @Query("specialty") specialty: String? = null,
+        @Query("sortBy") sortBy: String = "rating",
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 10
+    ): ApiResponseDto<PagedResponseDto<DoctorDto>>
+
+    @GET("api/v1/doctors/{id}")
+    suspend fun getDoctorById(@Path("id") id: String): ApiResponseDto<DoctorDto>
+
+    @POST("api/v1/doctors/{id}/favorite")
+    suspend fun toggleFavorite(@Path("id") id: String): ApiResponseDto<Unit>
+
+    @GET("api/v1/doctors/favorites")
+    suspend fun getFavorites(@Query("page") page: Int = 0, @Query("size") size: Int = 10): ApiResponseDto<PagedResponseDto<DoctorDto>>
+}
+
+interface AppointmentApi {
+    @POST("api/v1/appointments")
+    suspend fun bookAppointment(@Body request: BookAppointmentRequestDto): ApiResponseDto<AppointmentDto>
+
+    @GET("api/v1/appointments")
+    suspend fun getMyAppointments(
+        @Query("status") status: String? = null,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 10
+    ): ApiResponseDto<PagedResponseDto<AppointmentDto>>
+
+    @GET("api/v1/appointments/{id}")
+    suspend fun getAppointmentById(@Path("id") id: String): ApiResponseDto<AppointmentDto>
+
+    @PATCH("api/v1/appointments/{id}/cancel")
+    suspend fun cancelAppointment(@Path("id") id: String, @Body request: CancelRequestDto): ApiResponseDto<AppointmentDto>
+}
+
+interface PaymentApi {
+    @POST("api/v1/payments/initiate")
+    suspend fun initiatePayment(@Body request: InitiatePaymentRequestDto): ApiResponseDto<PaymentDto>
+
+    @POST("api/v1/payments/verify")
+    suspend fun verifyPayment(@Body request: VerifyPaymentRequestDto): ApiResponseDto<PaymentDto>
+}
+
+interface ProfileApi {
+    @GET("api/v1/profile")
+    suspend fun getProfile(): ApiResponseDto<ProfileDto>
+
+    @PUT("api/v1/profile")
+    suspend fun updateProfile(@Body request: UpdateProfileRequestDto): ApiResponseDto<ProfileDto>
+}
+
+interface NotificationApi {
+    @GET("api/v1/notifications")
+    suspend fun getNotifications(@Query("page") page: Int = 0, @Query("size") size: Int = 20): ApiResponseDto<PagedResponseDto<NotificationDto>>
+
+    @PATCH("api/v1/notifications/{id}/read")
+    suspend fun markRead(@Path("id") id: String): ApiResponseDto<Unit>
+
+    @PATCH("api/v1/notifications/read-all")
+    suspend fun markAllRead(): ApiResponseDto<Unit>
+
+    @POST("api/v1/notifications/fcm-token")
+    suspend fun registerFcmToken(@Body token: String): ApiResponseDto<Unit>
+}
+
+interface ChatApi {
+    @GET("api/v1/chat/{roomId}/messages")
+    suspend fun getMessages(
+        @Path("roomId") roomId: String,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 50
+    ): ApiResponseDto<PagedResponseDto<ChatMessageDto>>
+}
