@@ -9,9 +9,9 @@ spring:
       - org.redisson.spring.starter.RedissonAutoConfigurationV2
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/clinical_db
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/clinical_db}
+    username: ${DB_USERNAME:clinical_user}
+    password: ${DB_PASSWORD:clinical_pass}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5

@@ -9,6 +9,7 @@ import com.mediwise.core.result.onSuccess
 import com.mediwise.core.result.onError
 import com.mediwise.domain.usecase.appointment.GetMyAppointmentsUseCase
 import com.mediwise.domain.usecase.doctor.GetDoctorsUseCase
+import com.mediwise.domain.usecase.profile.GetProfileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +20,7 @@ import javax.inject.Inject
 
 data class HomeUiState(
     val isLoading: Boolean = false,
-    val userName: String = "",
+    val userName: String = "User",
     val unreadNotifications: Int = 0,
     val upcomingAppointments: List<Appointment> = emptyList(),
     val topDoctors: List<Doctor> = emptyList(),
@@ -30,6 +31,7 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val getDoctorsUseCase: GetDoctorsUseCase,
     private val getAppointmentsUseCase: GetMyAppointmentsUseCase,
+    private val getProfileUseCase: GetProfileUseCase,
     private val sessionDataStore: SessionDataStore
 ) : ViewModel() {
 
@@ -42,14 +44,29 @@ class HomeViewModel @Inject constructor(
 
     private fun loadHomeData() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoading = true, error = null) }
 
-            // Load doctor list
+            // 1. Fetch user profile / name
+            getProfileUseCase().onSuccess { prof ->
+                val name = prof.fullName
+                if (name.isNotBlank()) {
+                    _uiState.update { it.copy(userName = name) }
+                }
+            }
+
+            // 2. Load top doctors
             getDoctorsUseCase(page = 0, size = 5)
-                .onSuccess { docs -> _uiState.update { it.copy(topDoctors = docs, isLoading = false) } }
-                .onError { e -> _uiState.update { it.copy(error = e.message, isLoading = false) } }
+                .onSuccess { docs -> _uiState.update { it.copy(topDoctors = docs) } }
+                .onError { e -> _uiState.update { it.copy(error = e.message) } }
+
+            // 3. Load upcoming appointments
+            getAppointmentsUseCase(status = "PENDING,CONFIRMED", page = 0, size = 5)
+                .onSuccess { appts -> _uiState.update { it.copy(upcomingAppointments = appts) } }
+
+            _uiState.update { it.copy(isLoading = false) }
         }
     }
 
     fun refresh() = loadHomeData()
 }
+

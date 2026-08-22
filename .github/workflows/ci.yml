@@ -1,23 +1,27 @@
-name: Clinical System CI/CD
+name: MediWise Clinical System CI/CD
 
 on:
   push:
     branches: [main, develop]
     paths:
       - 'backend/**'
+      - 'mediwise-admin/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [main, develop]
     paths:
       - 'backend/**'
+      - 'mediwise-admin/**'
+      - '.github/workflows/**'
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/clinical-system-backend
 
 jobs:
-  # ─── Test & Build ────────────────────────────────────────────────────────────
-  test-and-build:
-    name: Test & Build
+  # ─── Backend: Test & Build ──────────────────────────────────────────────────
+  backend-ci:
+    name: Backend (Test & Build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,6 +42,18 @@ jobs:
         ports:
           - 5432:5432
 
+      mongo:
+        image: mongo:7-jammy
+        env:
+          MONGO_INITDB_DATABASE: clinical_chat_test
+        options: >-
+          --health-cmd "mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
       redis:
         image: redis:7-alpine
         options: >-
@@ -52,43 +68,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Run tests
-        run: mvn verify -Dspring.profiles.active=test
+      - name: Run Unit & Integration Tests
+        run: mvn clean test -B
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/clinical_test
           SPRING_DATASOURCE_USERNAME: test_user
           SPRING_DATASOURCE_PASSWORD: test_pass
+          SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/clinical_chat_test
           SPRING_REDIS_HOST: localhost
           APP_JWT_SECRET: test-jwt-secret-for-ci-only-256-bits-padded-here
 
-      - name: Upload test results
+      - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: backend-test-results
           path: backend/target/surefire-reports/
 
-      - name: Build JAR
-        run: mvn package -DskipTests -q
+      - name: Build Application Package (JAR)
+        run: mvn package -DskipTests -B
 
-      - name: Upload JAR artifact
+      - name: Upload JAR Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-jar
-          path: backend/target/clinical-system-*.jar
+          name: clinical-backend-jar
+          path: backend/target/clinical-backend-*.jar
 
-  # ─── Docker Build & Push ─────────────────────────────────────────────────────
-  docker-build-push:
-    name: Docker Build & Push
+  # ─── Admin Dashboard: Lint & Build ─────────────────────────────────────────
+  admin-ci:
+    name: Admin Portal (Vite & React Build)
     runs-on: ubuntu-latest
-    needs: test-and-build
+    defaults:
+      run:
+        working-directory: mediwise-admin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: mediwise-admin/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Production Bundle
+        run: npm run build
+
+      - name: Upload Admin Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: mediwise-admin/dist/
+
+  # ─── Docker Build & Push to GHCR ────────────────────────────────────────────
+  docker-build-push:
+    name: Docker Build & Publish
+    runs-on: ubuntu-latest
+    needs: [backend-ci, admin-ci]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     permissions:
@@ -99,6 +147,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -106,7 +157,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata for Docker
+      - name: Extract Metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -115,7 +166,7 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Build and push Docker image
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: backend
@@ -125,30 +176,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── Deploy to ECS (Production) ──────────────────────────────────────────────
+  # ─── Production Deployment (AWS ECS) ────────────────────────────────────────
   deploy-production:
-    name: Deploy to AWS ECS
+    name: Deploy to Production (AWS ECS)
     runs-on: ubuntu-latest
     needs: docker-build-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
 
     steps:
-      - name: Configure AWS credentials
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1  # Mumbai region
+          aws-region: ${{ secrets.AWS_REGION || 'ap-south-1' }}
 
-      - name: Download task definition
+      - name: Download Task Definition
         run: |
           aws ecs describe-task-definition \
             --task-definition clinical-system-task \
             --query taskDefinition \
             > task-definition.json
 
-      - name: Update ECS task definition with new image
+      - name: Update ECS Task Definition with new image
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
@@ -156,7 +210,7 @@ jobs:
           container-name: clinical-system-app
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
 
-      - name: Deploy to ECS service
+      - name: Deploy to ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}

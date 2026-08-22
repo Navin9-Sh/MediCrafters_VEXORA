@@ -52,6 +52,7 @@ data class DoctorDto(
 @Serializable
 data class AppointmentDto(
     val id: String, val patientId: String, val doctorId: String,
+    val doctorName: String? = null, val doctorSpecialty: String? = null, val doctorProfileImage: String? = null,
     val slotId: String, val slotDate: String? = null,
     val slotStartTime: String? = null, val slotEndTime: String? = null,
     val status: String, val type: String,
@@ -62,22 +63,89 @@ data class AppointmentDto(
 @Serializable data class CancelRequestDto(val reason: String? = null)
 
 @Serializable
+data class SlotDto(
+    val id: String,
+    val doctorId: String,
+    val slotDate: String,
+    val startTime: String,
+    val endTime: String,
+    val status: String
+)
+
+@Serializable
+data class SlotLockResponseDto(
+    val slotId: String,
+    val locked: Boolean,
+    val expiresAt: String,
+    val ttlMinutes: Long
+)
+
+@Serializable
 data class PaymentDto(val id: String, val appointmentId: String, val amount: String, val status: String, val gatewayOrderId: String? = null, val gatewayPaymentId: String? = null)
 @Serializable data class InitiatePaymentRequestDto(val appointmentId: String, val amount: String)
 @Serializable data class VerifyPaymentRequestDto(val razorpayOrderId: String, val razorpayPaymentId: String, val razorpaySignature: String)
 
-@Serializable data class ProfileDto(val id: String? = null, val userId: String? = null, val fullName: String? = null, val dob: String? = null, val bloodType: String? = null, val gender: String? = null, val profileImage: String? = null)
-@Serializable data class UpdateProfileRequestDto(val fullName: String? = null, val dob: String? = null, val bloodType: String? = null, val gender: String? = null)
+@Serializable data class ProfileDto(val id: String? = null, val userId: String? = null, val fullName: String? = null, val dob: String? = null, val bloodType: String? = null, val gender: String? = null, val address: String? = null, val emergencyContact: String? = null, val profileImage: String? = null)
+@Serializable data class UpdateProfileRequestDto(val fullName: String? = null, val dob: String? = null, val bloodType: String? = null, val gender: String? = null, val address: String? = null, val emergencyContact: String? = null)
 
 @Serializable data class NotificationDto(val id: String, val title: String, val body: String? = null, val type: String, val read: Boolean = false, val sentAt: String? = null)
 
 @Serializable data class ChatMessageDto(val id: String? = null, val roomId: String, val senderId: String, val senderRole: String, val content: String, val contentType: String = "TEXT", val sentAt: String? = null, val read: Boolean = false)
 
-fun DoctorDto.toDomain() = com.mediwise.domain.model.Doctor(id = id, fullName = fullName, specialty = specialty, consultationFee = consultationFee ?: "0", rating = avgRating?.toDoubleOrNull() ?: 0.0, reviewCount = totalReviews, profileImage = profileImage, available = available)
-fun AppointmentDto.toDomain() = com.mediwise.domain.model.Appointment(id = id, patientId = patientId, doctorId = doctorId, slotId = slotId, date = slotDate ?: "", time = "$slotStartTime - $slotEndTime", status = status, type = type)
+fun DoctorDto.toDomain() = com.mediwise.domain.model.Doctor(
+    id = id,
+    fullName = fullName,
+    specialty = specialty,
+    consultationFee = consultationFee ?: "0",
+    rating = avgRating?.toDoubleOrNull() ?: 0.0,
+    reviewCount = totalReviews,
+    profileImage = profileImage,
+    available = available,
+    bio = bio ?: "",
+    avgRating = avgRating?.toDoubleOrNull() ?: 0.0,
+    totalReviews = totalReviews,
+    experienceYears = experienceYears ?: 0,
+    isAvailable = available
+)
+
+fun AppointmentDto.toDomain() = com.mediwise.domain.model.Appointment(
+    id = id,
+    patientId = patientId,
+    doctorId = doctorId,
+    doctorName = doctorName ?: "",
+    doctorSpecialty = doctorSpecialty ?: "",
+    slotId = slotId,
+    date = slotDate ?: "",
+    time = if (slotStartTime != null && slotEndTime != null) "$slotStartTime - $slotEndTime" else (slotStartTime ?: ""),
+    status = status,
+    type = type
+)
+
+fun SlotDto.toDomain() = com.mediwise.domain.model.SlotModel(
+    id = id,
+    doctorId = doctorId,
+    date = slotDate,
+    startTime = startTime,
+    endTime = endTime,
+    status = status
+)
+
 fun AuthResponseDto.toDomain() = com.mediwise.domain.model.AuthResult(accessToken = accessToken, refreshToken = refreshToken, user = user.toDomain())
 fun UserInfoDto.toDomain() = com.mediwise.domain.model.User(id = id, email = email, role = role)
 fun PaymentDto.toDomain() = com.mediwise.domain.model.Payment(id = id, appointmentId = appointmentId, amount = amount, status = status)
 fun ProfileDto.toDomain() = com.mediwise.domain.model.UserProfile(fullName = fullName ?: "", dob = dob ?: "", bloodType = bloodType ?: "", gender = gender ?: "", profileImage = profileImage)
+fun ProfileDto.toPatientProfile(email: String = "", phone: String = "") = com.mediwise.domain.model.PatientProfile(
+    id = id ?: "",
+    fullName = fullName ?: "",
+    email = email,
+    phone = phone,
+    dateOfBirth = dob ?: "",
+    gender = gender ?: "",
+    bloodType = bloodType ?: "",
+    address = address ?: "",
+    emergencyContact = emergencyContact ?: "",
+    profileImageUrl = profileImage
+)
 fun NotificationDto.toDomain() = com.mediwise.domain.model.Notification(id = id, title = title, body = body ?: "", type = type, isRead = read, time = sentAt ?: "")
 fun ChatMessageDto.toDomain() = com.mediwise.domain.model.ChatMessage(id = id ?: "", senderId = senderId, content = content, time = sentAt ?: "", isMe = false)
+

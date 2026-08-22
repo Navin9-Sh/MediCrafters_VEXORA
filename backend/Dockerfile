@@ -1,28 +1,27 @@
 # ─── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 
-# Copy Maven wrapper and pom first (layer cache optimization)
-COPY mvnw pom.xml ./
-COPY .mvn .mvn
-RUN chmod +x mvnw && ./mvnw dependency:go-offline -q
+# Copy pom first (layer cache optimization)
+COPY pom.xml ./
+RUN mvn dependency:go-offline -B -q
 
 # Copy source and build (skip tests — tests run in CI pipeline)
 COPY src src
-RUN ./mvnw package -DskipTests -q
+RUN mvn package -DskipTests -B -q
 
 # ─── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
 # Security: run as non-root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-
 WORKDIR /app
 
 # Copy the fat JAR
-COPY --from=builder /build/target/clinical-system-*.jar app.jar
+COPY --chown=appuser:appgroup --from=builder /build/target/*.jar app.jar
+
+USER appuser
 
 # JVM tuning for containers
 ENV JAVA_OPTS="\

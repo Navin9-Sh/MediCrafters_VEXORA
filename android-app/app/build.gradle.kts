@@ -11,6 +11,7 @@ plugins {
 android {
     namespace = "com.mediwise"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.mediwise"

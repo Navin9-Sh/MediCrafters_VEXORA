@@ -1,5 +1,6 @@
 package com.mediwise.presentation.screens.doctors
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,13 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mediwise.presentation.theme.*
-
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mediwise.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +35,16 @@ fun DoctorDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val doctor = uiState.doctor
+    val context = LocalContext.current
+
+    val initials = remember(doctor?.fullName) {
+        doctor?.fullName?.split(" ")
+            ?.filter { it.isNotBlank() }
+            ?.mapNotNull { it.firstOrNull()?.toString() }
+            ?.take(2)
+            ?.joinToString("")
+            ?.uppercase() ?: "DR"
+    }
 
     Scaffold(
         topBar = {
@@ -45,10 +56,23 @@ fun DoctorDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.Default.FavoriteBorder, contentDescription = "Favorite", tint = Color.White)
+                    IconButton(onClick = { viewModel.toggleFavorite() }) {
+                        Icon(
+                            imageVector = if (uiState.isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = "Favorite",
+                            tint = if (uiState.isFavorite) ErrorRed else Color.White
+                        )
                     }
-                    IconButton(onClick = { }) {
+                    IconButton(onClick = {
+                        doctor?.let { doc ->
+                            val sendIntent = Intent().apply {
+                                action = Intent.ACTION_SEND
+                                putExtra(Intent.EXTRA_TEXT, "Consult with Dr. ${doc.fullName} (${doc.specialty}) on MediWise! Consultation Fee: ₹${doc.consultationFee}")
+                                type = "text/plain"
+                            }
+                            context.startActivity(Intent.createChooser(sendIntent, "Share Doctor Profile"))
+                        }
+                    }) {
                         Icon(Icons.Default.Share, contentDescription = "Share", tint = Color.White)
                     }
                 },
@@ -56,151 +80,244 @@ fun DoctorDetailScreen(
             )
         },
         bottomBar = {
-            Surface(
-                shadowElevation = 8.dp,
-                color = SurfaceWhite
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            if (doctor != null) {
+                Surface(
+                    shadowElevation = 8.dp,
+                    color = SurfaceWhite
                 ) {
-                    OutlinedButton(
-                        onClick = { },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = ButtonDefaults.outlinedButtonBorder
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Default.ChatBubbleOutline, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Chat")
-                    }
-                    Button(
-                        onClick = { onBookClick(doctorId) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                    ) {
-                        Icon(Icons.Default.CalendarMonth, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Book Slot")
+                        OutlinedButton(
+                            onClick = { onBookClick(doctorId) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = ButtonDefaults.outlinedButtonBorder
+                        ) {
+                            Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = PrimaryBlue)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Chat / Query", color = PrimaryBlue)
+                        }
+                        Button(
+                            onClick = { onBookClick(doctorId) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        ) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Book Slot", fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Hero section
-            item {
+        when {
+            uiState.isLoading -> {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .background(Brush.verticalGradient(listOf(PrimaryBlue, PrimaryBlueDark)))
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                    ) {
+                    CircularProgressIndicator(color = PrimaryBlue)
+                }
+            }
+            uiState.error != null -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(54.dp))
+                        Spacer(Modifier.height(16.dp))
+                        Text(uiState.error ?: "Failed to load doctor", fontSize = 16.sp, color = TextPrimary)
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = { viewModel.loadDoctor() },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
+                        ) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+            doctor != null -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    // Hero section
+                    item {
                         Box(
                             modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .background(Brush.verticalGradient(listOf(PrimaryBlue, PrimaryBlueDark)))
                         ) {
-                            Text(
-                                "SJ", color = Color.White,
-                                fontWeight = FontWeight.Bold, fontSize = 24.sp
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.25f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        initials, color = Color.White,
+                                        fontWeight = FontWeight.Bold, fontSize = 26.sp
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "Dr. ${doctor.fullName}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 22.sp
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(
+                                        Icons.Default.Verified,
+                                        contentDescription = "Verified",
+                                        tint = Color(0xFF4FC3F7),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Text(
+                                    doctor.specialty,
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+
+                    // Stats row
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            StatCard(
+                                value = if (doctor.avgRating > 0) String.format("%.1f", doctor.avgRating) else "${doctor.rating}",
+                                label = "Rating",
+                                icon = Icons.Default.Star,
+                                color = WarningAmber,
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                value = "${doctor.totalReviews.takeIf { it > 0 } ?: doctor.reviewCount}+",
+                                label = "Reviews",
+                                icon = Icons.Default.People,
+                                color = PrimaryBlue,
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                value = "${doctor.experienceYears}y",
+                                label = "Experience",
+                                icon = Icons.Default.WorkHistory,
+                                color = AccentGreen,
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                value = "₹${doctor.consultationFee}",
+                                label = "Fee",
+                                icon = Icons.Default.Payments,
+                                color = AIPurple,
+                                modifier = Modifier.weight(1f)
                             )
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Text(doctor?.fullName ?: "", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        Text(doctor?.specialty ?: "", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                     }
-                }
-            }
 
-            if (uiState.isLoading) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryBlue)
-                    }
-                }
-            } else if (doctor != null) {
-
-            // Stats row
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatCard(String.format("%.1f", doctor?.avgRating ?: 0.0), "Rating", Icons.Default.Star, WarningAmber, Modifier.weight(1f))
-                    StatCard("${doctor?.totalReviews ?: 0}", "Reviews", Icons.Default.People, PrimaryBlue, Modifier.weight(1f))
-                    StatCard("${doctor?.experienceYears ?: 0}y", "Experience", Icons.Default.WorkHistory, AccentGreen, Modifier.weight(1f))
-                    StatCard("₹${doctor?.consultationFee ?: 0.0}", "Fee", Icons.Default.Payments, AIPurple, Modifier.weight(1f))
-                }
-            }
-
-            // About
-            item {
-                SectionCard(title = "About") {
-                    Text(
-                        doctor?.bio ?: "",
-                        fontSize = 14.sp,
-                        color = TextSecondary,
-                        lineHeight = 22.sp
-                    )
-                }
-            }
-
-            // Available slots preview
-            item {
-                SectionCard(title = "Available Today") {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(listOf("09:00 AM", "10:30 AM", "02:00 PM", "03:30 PM", "05:00 PM")) { slot ->
-                            SlotChip(time = slot, onClick = { onBookClick(doctorId) })
+                    // About section
+                    item {
+                        SectionCard(title = "About Doctor") {
+                            Text(
+                                text = doctor.bio.ifBlank {
+                                    "Senior specialist in ${doctor.specialty} with over ${doctor.experienceYears} years of clinical experience dedicated to providing patient-centered care and modern diagnostic treatments."
+                                },
+                                fontSize = 14.sp,
+                                color = TextSecondary,
+                                lineHeight = 22.sp
+                            )
                         }
                     }
-                }
-            }
 
-            // Reviews
-            item {
-                SectionCard(title = "Patient Reviews") {
-                    repeat(3) { i ->
-                        ReviewItem(
-                            name = listOf("Priya S.", "Rahul M.", "Anjali K.")[i],
-                            rating = listOf(5, 4, 5)[i],
-                            comment = listOf(
-                                "Excellent consultation! Very thorough and patient.",
-                                "Very knowledgeable doctor. Explained everything clearly.",
-                                "Highly recommended. Quick diagnosis and effective treatment."
-                            )[i]
-                        )
-                        if (i < 2) HorizontalDivider(color = Divider, modifier = Modifier.padding(vertical = 8.dp))
+                    // Available Today section
+                    item {
+                        SectionCard(title = "Available Today") {
+                            if (uiState.todaySlots.isNotEmpty()) {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(uiState.todaySlots, key = { it.id }) { slot ->
+                                        SlotChip(time = slot.startTime, onClick = { onBookClick(doctorId) })
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "No open slots for today",
+                                        fontSize = 13.sp,
+                                        color = TextSecondary
+                                    )
+                                    TextButton(onClick = { onBookClick(doctorId) }) {
+                                        Text("Pick another date →", color = PrimaryBlue, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
                     }
+
+                    // Reviews section
+                    item {
+                        SectionCard(title = "Patient Reviews (${doctor.totalReviews.takeIf { it > 0 } ?: doctor.reviewCount})") {
+                            val sampleReviews = listOf(
+                                Triple("Priya Sharma", 5, "Dr. ${doctor.fullName} is extremely patient and explains the diagnosis thoroughly. Highly recommended!"),
+                                Triple("Rahul Verma", 5, "Very attentive and professional consultation. The prescribed treatment helped quickly."),
+                                Triple("Ananya Sengupta", 4, "Clear explanations and friendly attitude. Smooth appointment experience.")
+                            )
+                            sampleReviews.forEachIndexed { index, (name, rating, comment) ->
+                                ReviewItem(name = name, rating = rating, comment = comment)
+                                if (index < sampleReviews.size - 1) {
+                                    HorizontalDivider(color = Divider, modifier = Modifier.padding(vertical = 10.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    item { Spacer(Modifier.height(24.dp)) }
                 }
             }
-
-            } // End of doctor data block
-            
-            item { Spacer(Modifier.height(16.dp)) }
         }
     }
 }
 
 @Composable
-private fun StatCard(value: String, label: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
-                     color: Color, modifier: Modifier = Modifier) {
+private fun StatCard(
+    value: String,
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
@@ -244,7 +361,8 @@ private fun SlotChip(time: String, onClick: () -> Unit) {
         onClick = onClick
     ) {
         Text(
-            time, fontSize = 13.sp,
+            time,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             color = PrimaryBlue,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -272,8 +390,12 @@ private fun ReviewItem(name: String, rating: Int, comment: String) {
                 Text(name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = TextPrimary)
                 Row {
                     repeat(rating) {
-                        Icon(Icons.Default.Star, contentDescription = null,
-                            tint = WarningAmber, modifier = Modifier.size(12.dp))
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = WarningAmber,
+                            modifier = Modifier.size(12.dp)
+                        )
                     }
                 }
             }
@@ -282,3 +404,4 @@ private fun ReviewItem(name: String, rating: Int, comment: String) {
         }
     }
 }
+

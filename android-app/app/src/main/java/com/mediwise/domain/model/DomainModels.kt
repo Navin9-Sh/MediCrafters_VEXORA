@@ -11,16 +11,16 @@ data class ChatMessage(val id: String, val senderId: String, val content: String
 
 // For ProfileViewModel compatibility
 data class PatientProfile(
-    val id: String,
-    val fullName: String,
-    val email: String,
-    val phone: String,
-    val dateOfBirth: String,
-    val gender: String,
-    val bloodType: String,
-    val address: String,
-    val emergencyContact: String,
-    val profileImageUrl: String?
+    val id: String = "",
+    val fullName: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val dateOfBirth: String = "",
+    val gender: String = "",
+    val bloodType: String = "",
+    val address: String = "",
+    val emergencyContact: String = "",
+    val profileImageUrl: String? = null
 )
 
 // Summary models for UseCases and UI components
@@ -64,3 +64,20 @@ data class NotificationModel(
     val isRead: Boolean,
     val sentAt: String
 )
+
+data class SlotModel(
+    val id: String,
+    val doctorId: String,
+    val date: String,
+    val startTime: String,
+    val endTime: String,
+    val status: String
+)
+
+data class SlotLockResult(
+    val slotId: String,
+    val locked: Boolean,
+    val expiresAt: String,
+    val ttlMinutes: Long
+)
+

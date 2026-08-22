@@ -13,17 +13,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mediwise.domain.model.Doctor
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mediwise.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
     onDoctorClick: (String) -> Unit,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    viewModel: DoctorViewModel = hiltViewModel()
 ) {
-    // In real app: collect from FavoritesViewModel injected via Hilt
-    val favorites = remember { mutableStateListOf<Doctor>() }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadFavorites()
+    }
 
     Scaffold(
         topBar = {
@@ -41,7 +46,7 @@ fun FavoritesScreen(
         },
         containerColor = BackgroundWhite
     ) { padding ->
-        if (favorites.isEmpty()) {
+        if (uiState.favoriteDoctors.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -78,20 +83,21 @@ fun FavoritesScreen(
             ) {
                 item {
                     Text(
-                        "${favorites.size} saved doctors",
+                        "${uiState.favoriteDoctors.size} saved doctors",
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
                 }
-                items(favorites, key = { it.id }) { doctor ->
+                items(uiState.favoriteDoctors, key = { it.id }) { doctor ->
                     DoctorCard(
                         doctor = doctor,
                         isFavorite = true,
                         onDoctorClick = { onDoctorClick(doctor.id) },
-                        onFavoriteToggle = { favorites.remove(doctor) }
+                        onFavoriteToggle = { viewModel.toggleFavorite(doctor.id) }
                     )
                 }
             }
         }
     }
 }
+

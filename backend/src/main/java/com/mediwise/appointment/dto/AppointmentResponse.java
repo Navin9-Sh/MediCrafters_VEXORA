@@ -15,6 +15,9 @@ public class AppointmentResponse {
     private UUID id;
     private UUID patientId;
     private UUID doctorId;
+    private String doctorName;
+    private String doctorSpecialty;
+    private String doctorProfileImage;
     private UUID slotId;
     private LocalDate slotDate;
     private LocalTime slotStartTime;
@@ -28,10 +31,17 @@ public class AppointmentResponse {
     private Instant updatedAt;
 
     public static AppointmentResponse from(Appointment a, TimeSlot slot) {
+        return from(a, slot, null, null, null);
+    }
+
+    public static AppointmentResponse from(Appointment a, TimeSlot slot, String doctorName, String doctorSpecialty, String doctorProfileImage) {
         return AppointmentResponse.builder()
                 .id(a.getId())
                 .patientId(a.getPatientId())
                 .doctorId(a.getDoctorId())
+                .doctorName(doctorName)
+                .doctorSpecialty(doctorSpecialty)
+                .doctorProfileImage(doctorProfileImage)
                 .slotId(a.getSlotId())
                 .slotDate(slot != null ? slot.getSlotDate() : null)
                 .slotStartTime(slot != null ? slot.getStartTime() : null)

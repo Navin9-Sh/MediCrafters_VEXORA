@@ -1,5 +1,6 @@
 package com.mediwise.presentation.screens.profile
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,19 +13,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import com.mediwise.core.datastore.SessionDataStore
 import com.mediwise.presentation.theme.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    val sessionDataStore: SessionDataStore
+) : ViewModel()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    var pushNotifications by remember { mutableStateOf(true) }
-    var appointmentReminders by remember { mutableStateOf(true) }
-    var chatNotifications by remember { mutableStateOf(true) }
-    var marketingEmails by remember { mutableStateOf(false) }
-    var biometricLogin by remember { mutableStateOf(false) }
-    var darkMode by remember { mutableStateOf(false) }
+    val sessionDataStore = viewModel.sessionDataStore
+    val coroutineScope = rememberCoroutineScope()
+
+    val pushNotifications by sessionDataStore.pushNotifications.collectAsState(initial = true)
+    val appointmentReminders by sessionDataStore.apptReminders.collectAsState(initial = true)
+    val chatNotifications by sessionDataStore.chatNotifications.collectAsState(initial = true)
+    val marketingEmails by sessionDataStore.marketingEmails.collectAsState(initial = false)
+    val biometricLogin by sessionDataStore.biometricLogin.collectAsState(initial = false)
+    val darkMode by sessionDataStore.darkMode.collectAsState(initial = false)
 
     Scaffold(
         topBar = {
@@ -43,16 +59,20 @@ fun SettingsScreen(
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize().padding(padding)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) {
             item {
-                SettingsSection(title = "Notifications") {
+                SettingsSection(title = "Notifications & Reminders") {
                     ToggleSetting(
                         icon = Icons.Default.Notifications,
                         title = "Push Notifications",
                         subtitle = "Get alerts for appointments and updates",
                         checked = pushNotifications,
-                        onCheckedChange = { pushNotifications = it }
+                        onCheckedChange = {
+                            coroutineScope.launch { sessionDataStore.saveSetting("push", it) }
+                        }
                     )
                     HorizontalDivider(color = Divider)
                     ToggleSetting(
@@ -60,7 +80,9 @@ fun SettingsScreen(
                         title = "Appointment Reminders",
                         subtitle = "1 hour before your consultation",
                         checked = appointmentReminders,
-                        onCheckedChange = { appointmentReminders = it }
+                        onCheckedChange = {
+                            coroutineScope.launch { sessionDataStore.saveSetting("reminders", it) }
+                        }
                     )
                     HorizontalDivider(color = Divider)
                     ToggleSetting(
@@ -68,7 +90,9 @@ fun SettingsScreen(
                         title = "Chat Notifications",
                         subtitle = "New messages from doctors",
                         checked = chatNotifications,
-                        onCheckedChange = { chatNotifications = it }
+                        onCheckedChange = {
+                            coroutineScope.launch { sessionDataStore.saveSetting("chat", it) }
+                        }
                     )
                     HorizontalDivider(color = Divider)
                     ToggleSetting(
@@ -76,31 +100,29 @@ fun SettingsScreen(
                         title = "Marketing Emails",
                         subtitle = "Health tips and promotions",
                         checked = marketingEmails,
-                        onCheckedChange = { marketingEmails = it }
+                        onCheckedChange = {
+                            coroutineScope.launch { sessionDataStore.saveSetting("marketing", it) }
+                        }
                     )
                 }
             }
 
             item {
-                SettingsSection(title = "Security") {
+                SettingsSection(title = "Security & Access") {
                     ToggleSetting(
                         icon = Icons.Default.Fingerprint,
                         title = "Biometric Login",
-                        subtitle = "Use fingerprint or face ID",
+                        subtitle = "Use fingerprint or face unlock",
                         checked = biometricLogin,
-                        onCheckedChange = { biometricLogin = it }
+                        onCheckedChange = {
+                            coroutineScope.launch { sessionDataStore.saveSetting("biometric", it) }
+                        }
                     )
                     HorizontalDivider(color = Divider)
                     ActionSetting(
                         icon = Icons.Default.Lock,
-                        title = "Change Password",
-                        subtitle = "Last changed 30 days ago"
-                    )
-                    HorizontalDivider(color = Divider)
-                    ActionSetting(
-                        icon = Icons.Default.Devices,
-                        title = "Active Sessions",
-                        subtitle = "Manage logged-in devices"
+                        title = "Privacy Policy & Terms",
+                        subtitle = "Review MediWise clinical data privacy"
                     )
                 }
             }
@@ -110,26 +132,21 @@ fun SettingsScreen(
                     ToggleSetting(
                         icon = Icons.Default.DarkMode,
                         title = "Dark Mode",
-                        subtitle = "Switch to dark theme",
+                        subtitle = "Toggle dark theme for night usage",
                         checked = darkMode,
-                        onCheckedChange = { darkMode = it }
+                        onCheckedChange = {
+                            coroutineScope.launch { sessionDataStore.saveSetting("dark", it) }
+                        }
                     )
                 }
             }
 
             item {
-                SettingsSection(title = "Data & Privacy") {
+                SettingsSection(title = "App Info & Support") {
                     ActionSetting(
-                        icon = Icons.Default.Download,
-                        title = "Download My Data",
-                        subtitle = "Export your health records"
-                    )
-                    HorizontalDivider(color = Divider)
-                    ActionSetting(
-                        icon = Icons.Default.DeleteForever,
-                        title = "Delete Account",
-                        subtitle = "Permanently remove your account",
-                        isDestructive = true
+                        icon = Icons.Default.Info,
+                        title = "App Version",
+                        subtitle = "MediWise v1.0.0 (Production Build)"
                     )
                 }
             }
@@ -142,8 +159,13 @@ fun SettingsScreen(
 @Composable
 private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = TextSecondary, modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextSecondary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -163,7 +185,9 @@ private fun ToggleSetting(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -206,20 +230,24 @@ private fun ActionSetting(
             modifier = Modifier.size(38.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null,
+                Icon(
+                    icon, contentDescription = null,
                     tint = if (isDestructive) ErrorRed else PrimaryBlue,
-                    modifier = Modifier.size(20.dp))
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                color = if (isDestructive) ErrorRed else TextPrimary)
+            Text(
+                title, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                color = if (isDestructive) ErrorRed else TextPrimary
+            )
             Text(subtitle, fontSize = 12.sp, color = TextSecondary)
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null,
-            tint = TextSecondary, modifier = Modifier.size(18.dp))
+        Icon(
+            Icons.Default.ChevronRight, contentDescription = null,
+            tint = TextSecondary, modifier = Modifier.size(18.dp)
+        )
     }
 }
 
-private fun Modifier.clickable(onClick: () -> Unit): Modifier =
-    this.then(Modifier.clickable(onClick = onClick))

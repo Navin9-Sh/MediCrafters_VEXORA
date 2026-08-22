@@ -26,7 +26,16 @@ public class JwtUtil {
     private long refreshExpiration;
 
     private SecretKey getSignKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret);
+        } catch (Exception e) {
+            keyBytes = secret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+        if (keyBytes.length < 32) {
+            keyBytes = java.util.Arrays.copyOf(keyBytes, 32);
+        }
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String generateAccessToken(String subject, Map<String, Object> claims) {
@@ -38,10 +47,13 @@ public class JwtUtil {
     }
 
     private String buildToken(String subject, Map<String, Object> claims, long expiration) {
-        return Jwts.builder()
+        var builder = Jwts.builder();
+        if (claims != null && !claims.isEmpty()) {
+            builder.claims(claims);
+        }
+        return builder
                 .id(UUID.randomUUID().toString())
                 .subject(subject)
-                .claims(claims)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSignKey())

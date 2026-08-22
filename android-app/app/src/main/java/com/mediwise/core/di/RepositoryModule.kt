@@ -32,4 +32,7 @@ abstract class RepositoryModule {
 
     @Binds @Singleton
     abstract fun bindChatRepository(impl: ChatRepositoryImpl): ChatRepository
+
+    @Binds @Singleton
+    abstract fun bindSlotRepository(impl: SlotRepositoryImpl): SlotRepository
 }

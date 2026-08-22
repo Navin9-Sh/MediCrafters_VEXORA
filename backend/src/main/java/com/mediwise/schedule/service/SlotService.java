@@ -36,12 +36,53 @@ public class SlotService {
 
     private static final long LOCK_TTL_MINUTES = 5;
 
-    @Cacheable(value = "slots", key = "#doctorId + '_' + #date")
+    @Transactional
     public List<SlotResponse> getAvailableSlots(UUID doctorId, LocalDate date) {
-        return slotRepository.findAvailableSlots(doctorId, date)
-                .stream()
-                .map(SlotResponse::from)
-                .toList();
+        if (date.isBefore(LocalDate.now())) {
+            return List.of();
+        }
+
+        List<TimeSlot> existing = slotRepository.findAvailableSlots(doctorId, date);
+        if (!existing.isEmpty()) {
+            return existing.stream().map(SlotResponse::from).toList();
+        }
+
+        // Auto-generate standard 30-min clinic slots for future dates (up to 30 days)
+        if (!date.isAfter(LocalDate.now().plusDays(30))) {
+            List<java.time.LocalTime> startTimes = List.of(
+                    java.time.LocalTime.of(9, 0),
+                    java.time.LocalTime.of(9, 30),
+                    java.time.LocalTime.of(10, 0),
+                    java.time.LocalTime.of(10, 30),
+                    java.time.LocalTime.of(11, 0),
+                    java.time.LocalTime.of(11, 30),
+                    java.time.LocalTime.of(14, 0),
+                    java.time.LocalTime.of(14, 30),
+                    java.time.LocalTime.of(15, 0),
+                    java.time.LocalTime.of(15, 30),
+                    java.time.LocalTime.of(16, 0),
+                    java.time.LocalTime.of(16, 30)
+            );
+
+            List<TimeSlot> newSlots = startTimes.stream().map(start -> TimeSlot.builder()
+                    .doctorId(doctorId)
+                    .slotDate(date)
+                    .startTime(start)
+                    .endTime(start.plusMinutes(30))
+                    .status(TimeSlot.SlotStatus.AVAILABLE)
+                    .build()
+            ).toList();
+
+            try {
+                slotRepository.saveAll(newSlots);
+                return newSlots.stream().map(SlotResponse::from).toList();
+            } catch (Exception e) {
+                log.warn("Slot concurrent creation notice for doctor {} on date {}", doctorId, date);
+                return slotRepository.findAvailableSlots(doctorId, date).stream().map(SlotResponse::from).toList();
+            }
+        }
+
+        return List.of();
     }
 
     @Transactional

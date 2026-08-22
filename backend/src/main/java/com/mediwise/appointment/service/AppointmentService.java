@@ -10,6 +10,8 @@ import com.mediwise.auth.model.User;
 import com.mediwise.common.exception.BusinessException;
 import com.mediwise.common.exception.ResourceNotFoundException;
 import com.mediwise.common.exception.SlotConflictException;
+import com.mediwise.doctor.model.Doctor;
+import com.mediwise.doctor.repository.DoctorRepository;
 import com.mediwise.profile.model.PatientProfile;
 import com.mediwise.profile.repository.PatientProfileRepository;
 import com.mediwise.schedule.model.TimeSlot;
@@ -24,6 +26,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +38,7 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final TimeSlotRepository slotRepository;
+    private final DoctorRepository doctorRepository;
     private final PatientProfileRepository patientProfileRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -40,8 +46,15 @@ public class AppointmentService {
     @CacheEvict(value = "slots", allEntries = true)
     public AppointmentResponse bookAppointment(User user, BookAppointmentRequest request) {
         PatientProfile patient = patientProfileRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new BusinessException("PROFILE_REQUIRED",
-                        "Complete your profile before booking an appointment."));
+                .orElseGet(() -> {
+                    // Auto-initialize profile if registering directly
+                    PatientProfile newProfile = PatientProfile.builder()
+                            .userId(user.getId())
+                            .fullName(user.getFullName() != null ? user.getFullName() : "Patient")
+                            .dob(user.getDob())
+                            .build();
+                    return patientProfileRepository.save(newProfile);
+                });
 
         TimeSlot slot = slotRepository.findById(request.getSlotId())
                 .orElseThrow(() -> new ResourceNotFoundException("Slot", request.getSlotId().toString()));
@@ -73,39 +86,51 @@ public class AppointmentService {
         // Publish domain event → triggers push notifications asynchronously
         eventPublisher.publishEvent(new AppointmentBookedEvent(this, appointment));
 
-        return AppointmentResponse.from(appointment, slot);
+        return buildAppointmentResponse(appointment, slot);
     }
 
     public Page<AppointmentResponse> getMyAppointments(User user, String status, int page, int size) {
         PatientProfile patient = patientProfileRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("PatientProfile", user.getId().toString()));
+                .orElseGet(() -> {
+                    PatientProfile newProfile = PatientProfile.builder()
+                            .userId(user.getId())
+                            .fullName(user.getFullName() != null ? user.getFullName() : "Patient")
+                            .dob(user.getDob())
+                            .build();
+                    return patientProfileRepository.save(newProfile);
+                });
 
         var pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         if (status != null && !status.isBlank()) {
-            Appointment.AppointmentStatus appointmentStatus =
-                    Appointment.AppointmentStatus.valueOf(status.toUpperCase());
-            return appointmentRepository
-                    .findByPatientIdAndStatusOrderByCreatedAtDesc(patient.getId(), appointmentStatus, pageable)
-                    .map(a -> {
-                        TimeSlot slot = slotRepository.findById(a.getSlotId()).orElse(null);
-                        return AppointmentResponse.from(a, slot);
-                    });
+            List<Appointment.AppointmentStatus> statuses = Arrays.stream(status.split(","))
+                    .map(String::trim)
+                    .map(s -> {
+                        try {
+                            return Appointment.AppointmentStatus.valueOf(s.toUpperCase());
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            if (!statuses.isEmpty()) {
+                return appointmentRepository
+                        .findByPatientIdAndStatusInOrderByCreatedAtDesc(patient.getId(), statuses, pageable)
+                        .map(this::buildAppointmentResponse);
+            }
         }
 
         return appointmentRepository
                 .findByPatientIdOrderByCreatedAtDesc(patient.getId(), pageable)
-                .map(a -> {
-                    TimeSlot slot = slotRepository.findById(a.getSlotId()).orElse(null);
-                    return AppointmentResponse.from(a, slot);
-                });
+                .map(this::buildAppointmentResponse);
     }
 
     public AppointmentResponse getAppointmentById(UUID id, User user) {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment", id.toString()));
-        TimeSlot slot = slotRepository.findById(appointment.getSlotId()).orElse(null);
-        return AppointmentResponse.from(appointment, slot);
+        return buildAppointmentResponse(appointment);
     }
 
     @Transactional
@@ -122,7 +147,7 @@ public class AppointmentService {
 
         appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
         appointment.setCancelledBy(user.getId());
-        appointment.setCancelReason(request.getReason());
+        appointment.setCancelReason(request != null ? request.getReason() : "Cancelled by user");
         appointmentRepository.save(appointment);
 
         // Release the slot
@@ -132,7 +157,19 @@ public class AppointmentService {
         });
 
         log.info("Appointment {} cancelled by user {}", id, user.getId());
+        return buildAppointmentResponse(appointment);
+    }
+
+    private AppointmentResponse buildAppointmentResponse(Appointment appointment) {
         TimeSlot slot = slotRepository.findById(appointment.getSlotId()).orElse(null);
-        return AppointmentResponse.from(appointment, slot);
+        return buildAppointmentResponse(appointment, slot);
+    }
+
+    private AppointmentResponse buildAppointmentResponse(Appointment appointment, TimeSlot slot) {
+        Doctor doctor = doctorRepository.findById(appointment.getDoctorId()).orElse(null);
+        String docName = doctor != null ? doctor.getFullName() : null;
+        String docSpecialty = doctor != null ? doctor.getSpecialty() : null;
+        String docImage = doctor != null ? doctor.getProfileImage() : null;
+        return AppointmentResponse.from(appointment, slot, docName, docSpecialty, docImage);
     }
 }

@@ -195,6 +195,15 @@ fun DoctorCard(
     onFavoriteToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val initials = remember(doctor.fullName) {
+        doctor.fullName.split(" ")
+            .filter { it.isNotBlank() }
+            .mapNotNull { it.firstOrNull()?.toString() }
+            .take(2)
+            .joinToString("")
+            .uppercase()
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -218,7 +227,7 @@ fun DoctorCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = doctor.fullName.take(2).uppercase(),
+                    text = initials,
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp

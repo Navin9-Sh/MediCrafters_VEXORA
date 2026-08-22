@@ -14,6 +14,7 @@ import javax.inject.Inject
 data class DoctorListUiState(
     val isLoading: Boolean = false,
     val doctors: List<Doctor> = emptyList(),
+    val favoriteDoctors: List<Doctor> = emptyList(),
     val favorites: Set<String> = emptySet(),
     val searchQuery: String = "",
     val selectedSpecialty: String = "All",
@@ -36,7 +37,21 @@ class DoctorViewModel @Inject constructor(
     init {
         observeSearch()
         loadDoctors()
+        loadFavorites()
     }
+
+    fun loadFavorites() {
+        viewModelScope.launch {
+            when (val res = repository.getFavorites()) {
+                is Result.Success -> {
+                    val favIds = res.data.map { it.id }.toSet()
+                    _uiState.update { it.copy(favorites = favIds, favoriteDoctors = res.data) }
+                }
+                else -> {}
+            }
+        }
+    }
+
 
     @OptIn(FlowPreview::class)
     private fun observeSearch() {

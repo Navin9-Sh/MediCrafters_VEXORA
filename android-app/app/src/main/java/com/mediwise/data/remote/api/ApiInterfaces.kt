@@ -69,6 +69,10 @@ interface ProfileApi {
 
     @PUT("api/v1/profile")
     suspend fun updateProfile(@Body request: UpdateProfileRequestDto): ApiResponseDto<ProfileDto>
+
+    @Multipart
+    @POST("api/v1/profile/image")
+    suspend fun uploadProfileImage(@Part file: okhttp3.MultipartBody.Part): ApiResponseDto<String>
 }
 
 interface NotificationApi {
@@ -93,3 +97,18 @@ interface ChatApi {
         @Query("size") size: Int = 50
     ): ApiResponseDto<PagedResponseDto<ChatMessageDto>>
 }
+
+interface SlotApi {
+    @GET("api/v1/doctors/{doctorId}/slots")
+    suspend fun getSlots(
+        @Path("doctorId") doctorId: String,
+        @Query("date") date: String
+    ): ApiResponseDto<List<SlotDto>>
+
+    @POST("api/v1/slots/{slotId}/lock")
+    suspend fun lockSlot(@Path("slotId") slotId: String): ApiResponseDto<SlotLockResponseDto>
+
+    @DELETE("api/v1/slots/{slotId}/lock")
+    suspend fun releaseSlot(@Path("slotId") slotId: String): ApiResponseDto<Unit>
+}
+

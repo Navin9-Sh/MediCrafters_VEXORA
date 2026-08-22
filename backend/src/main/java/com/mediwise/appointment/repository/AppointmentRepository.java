@@ -18,6 +18,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     Page<Appointment> findByPatientIdAndStatusOrderByCreatedAtDesc(
             UUID patientId, Appointment.AppointmentStatus status, Pageable pageable);
 
+    Page<Appointment> findByPatientIdAndStatusInOrderByCreatedAtDesc(
+            UUID patientId, java.util.Collection<Appointment.AppointmentStatus> statuses, Pageable pageable);
+
     Page<Appointment> findByDoctorIdOrderByCreatedAtDesc(UUID doctorId, Pageable pageable);
 
     @Query("SELECT COUNT(a) FROM Appointment a WHERE a.doctorId = :doctorId " +

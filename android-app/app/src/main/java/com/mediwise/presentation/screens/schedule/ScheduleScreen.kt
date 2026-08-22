@@ -45,7 +45,7 @@ fun ScheduleScreen(
         viewModel.loadSlotsForDate(selectedDate, doctorId)
     }
 
-    var selectedSlot by remember { mutableStateOf<String?>(null) }
+    var selectedSlotModel by remember { mutableStateOf<com.mediwise.domain.model.SlotModel?>(null) }
 
     Scaffold(
         topBar = {
@@ -66,14 +66,17 @@ fun ScheduleScreen(
             )
         },
         bottomBar = {
-            AnimatedVisibility(selectedSlot != null) {
+            if (selectedSlotModel != null) {
                 Surface(shadowElevation = 8.dp, color = SurfaceWhite) {
                     Button(
                         onClick = {
-                            selectedSlot?.let {
-                                onSlotSelected(selectedDate.toString(), it)
+                            selectedSlotModel?.let { slot ->
+                                viewModel.lockSlot(slot.id) {
+                                    onSlotSelected(selectedDate.toString(), slot.id)
+                                }
                             }
                         },
+                        enabled = !uiState.isLocking,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp)
@@ -81,12 +84,16 @@ fun ScheduleScreen(
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
                     ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Confirm: ${selectedDate.format(DateTimeFormatter.ofPattern("MMM d"))} at $selectedSlot",
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        if (uiState.isLocking) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Confirm: ${selectedDate.format(DateTimeFormatter.ofPattern("MMM d"))} at ${selectedSlotModel?.startTime}",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -174,7 +181,10 @@ fun ScheduleScreen(
                                         )
                                         .then(
                                             if (date != null && !isPast)
-                                                Modifier.clickable { selectedDate = date }
+                                                Modifier.clickable { 
+                                                    selectedDate = date 
+                                                    selectedSlotModel = null
+                                                }
                                             else Modifier
                                         ),
                                     contentAlignment = Alignment.Center
@@ -216,50 +226,60 @@ fun ScheduleScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
-                    // Legend
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        LegendItem(color = PrimaryBlue, label = "Selected")
-                        LegendItem(color = PrimaryBlueLight, label = "Available")
-                        LegendItem(color = Divider, label = "Booked")
-                    }
-                    Spacer(Modifier.height(12.dp))
+                    if (uiState.isLoading) {
+                        Box(Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = PrimaryBlue)
+                        }
+                    } else if (uiState.slots.isEmpty()) {
+                        Box(Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
+                            Text("No slots available for this date", color = TextSecondary, fontSize = 13.sp)
+                        }
+                    } else {
+                        // Legend
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            LegendItem(color = PrimaryBlue, label = "Selected")
+                            LegendItem(color = PrimaryBlueLight, label = "Available")
+                            LegendItem(color = Divider, label = "Booked")
+                        }
+                        Spacer(Modifier.height(12.dp))
 
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.height(200.dp)
-                    ) {
-                        items(uiState.timeSlots) { slot ->
-                            val isBooked = uiState.bookedSlots.contains(slot)
-                            val isSelected = selectedSlot == slot
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.height(200.dp)
+                        ) {
+                            items(uiState.slots, key = { it.id }) { slot ->
+                                val isBooked = slot.status != "AVAILABLE"
+                                val isSelected = selectedSlotModel?.id == slot.id
 
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = when {
-                                    isSelected -> PrimaryBlue
-                                    isBooked -> Divider
-                                    else -> PrimaryBlueLight
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(
-                                        if (!isBooked) Modifier.clickable { selectedSlot = slot }
-                                        else Modifier
-                                    )
-                            ) {
-                                Text(
-                                    slot,
-                                    modifier = Modifier.padding(vertical = 10.dp),
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
                                     color = when {
-                                        isSelected -> Color.White
-                                        isBooked -> TextSecondary.copy(alpha = 0.5f)
-                                        else -> PrimaryBlue
-                                    }
-                                )
+                                        isSelected -> PrimaryBlue
+                                        isBooked -> Divider
+                                        else -> PrimaryBlueLight
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(
+                                            if (!isBooked) Modifier.clickable { selectedSlotModel = slot }
+                                            else Modifier
+                                        )
+                                ) {
+                                    Text(
+                                        slot.startTime,
+                                        modifier = Modifier.padding(vertical = 10.dp),
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = when {
+                                            isSelected -> Color.White
+                                            isBooked -> TextSecondary.copy(alpha = 0.5f)
+                                            else -> PrimaryBlue
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

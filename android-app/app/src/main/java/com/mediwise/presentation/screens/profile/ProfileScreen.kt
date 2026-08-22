@@ -1,5 +1,9 @@
 package com.mediwise.presentation.screens.profile
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,13 +20,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mediwise.presentation.theme.*
-
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.mediwise.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +41,37 @@ fun ProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val profile = uiState.profile
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadProfile()
+    }
+
+    // Photo picker launcher for bonus avatar upload
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val bytes = inputStream?.readBytes()
+                val mimeType = context.contentResolver.getType(it) ?: "image/jpeg"
+                if (bytes != null) {
+                    viewModel.uploadAvatar(bytes, mimeType)
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    val initials = remember(profile?.fullName) {
+        profile?.fullName?.split(" ")
+            ?.filter { it.isNotBlank() }
+            ?.mapNotNull { it.firstOrNull()?.toString() }
+            ?.take(2)
+            ?.joinToString("")
+            ?.uppercase() ?: "U"
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -50,7 +87,9 @@ fun ProfileScreen(
         containerColor = BackgroundWhite
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             item {
@@ -67,32 +106,71 @@ fun ProfileScreen(
                                 modifier = Modifier
                                     .size(88.dp)
                                     .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.2f)),
+                                    .background(Color.White.copy(alpha = 0.25f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                            val initials = profile?.fullName?.split(" ")?.let {
-                                if (it.size > 1) "${it[0].first()}${it[1].first()}" else it[0].first().toString()
-                            } ?: "U"
-                                
-                            Text(initials, color = Color.White,
-                                fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                                if (!profile?.profileImageUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = profile?.profileImageUrl,
+                                        contentDescription = "Avatar",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Text(
+                                        initials,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 28.sp
+                                    )
+                                }
                             }
                             Surface(
                                 shape = CircleShape,
                                 color = PrimaryBlue,
+                                shadowElevation = 2.dp,
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
-                                    .size(26.dp)
+                                    .size(28.dp)
+                                    .clickable { imagePickerLauncher.launch("image/*") }
                             ) {
-                                Icon(Icons.Default.CameraAlt, contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.padding(4.dp).size(16.dp))
+                                if (uiState.isUploadingImage) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.padding(4.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.CameraAlt,
+                                        contentDescription = "Upload Photo",
+                                        tint = Color.White,
+                                        modifier = Modifier.padding(6.dp).size(16.dp)
+                                    )
+                                }
                             }
                         }
                         Spacer(Modifier.height(12.dp))
-                        Text(profile?.fullName ?: "User", color = Color.White,
-                            fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        Text(profile?.email ?: "", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                        Text(
+                            profile?.fullName?.ifBlank { "User" } ?: "User",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                        if (!profile?.email.isNullOrBlank()) {
+                            Text(
+                                profile?.email ?: "",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 14.sp
+                            )
+                        }
+                        if (!profile?.phone.isNullOrBlank()) {
+                            Text(
+                                profile?.phone ?: "",
+                                color = Color.White.copy(alpha = 0.75f),
+                                fontSize = 13.sp
+                            )
+                        }
                         Spacer(Modifier.height(16.dp))
                         Button(
                             onClick = onEditClick,
@@ -102,8 +180,12 @@ fun ProfileScreen(
                             ),
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = null,
-                                tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Spacer(Modifier.width(6.dp))
                             Text("Edit Profile", color = Color.White, fontSize = 13.sp)
                         }
@@ -111,6 +193,7 @@ fun ProfileScreen(
                 }
             }
 
+            // Real Stats Cards Row
             item {
                 Row(
                     modifier = Modifier
@@ -118,40 +201,82 @@ fun ProfileScreen(
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ProfileStatCard("12", "Appointments", Modifier.weight(1f))
-                    ProfileStatCard("5", "Doctors", Modifier.weight(1f))
-                    ProfileStatCard("A+", "Blood Type", Modifier.weight(1f))
-                    ProfileStatCard("28", "Age", Modifier.weight(1f))
+                    ProfileStatCard("${uiState.totalAppointments}", "Appointments", Modifier.weight(1f))
+                    ProfileStatCard("${uiState.totalDoctors}", "Doctors", Modifier.weight(1f))
+                    ProfileStatCard(profile?.bloodType?.ifBlank { "--" } ?: "--", "Blood Type", Modifier.weight(1f))
+                    ProfileStatCard(uiState.calculatedAge, "Age", Modifier.weight(1f))
                 }
             }
 
+            // Health Section
             item {
-                ProfileSection(title = "Health") {
-                    ProfileMenuItem(Icons.Default.FavoriteBorder, "Medical History", "View records")
-                    ProfileMenuItem(Icons.Default.MonitorHeart, "Vital Records", "Heart rate, BP, SpO2")
-                    ProfileMenuItem(Icons.Default.Psychology, "AI Health Report", "Last checked 2 days ago")
+                ProfileSection(title = "Health Information") {
+                    ProfileMenuItem(
+                        icon = Icons.Default.FavoriteBorder,
+                        title = "Blood Group & Vitals",
+                        subtitle = "Blood Type: ${profile?.bloodType?.ifBlank { "Not set" } ?: "Not set"}"
+                    )
+                    ProfileMenuItem(
+                        icon = Icons.Default.CalendarToday,
+                        title = "Date of Birth",
+                        subtitle = profile?.dateOfBirth?.ifBlank { "Not set" } ?: "Not set"
+                    )
+                    ProfileMenuItem(
+                        icon = Icons.Default.PersonOutline,
+                        title = "Gender",
+                        subtitle = profile?.gender?.ifBlank { "Not set" } ?: "Not set"
+                    )
                 }
             }
 
+            // Contact & Emergency Section
             item {
-                ProfileSection(title = "Account") {
-                    ProfileMenuItem(Icons.Default.Notifications, "Notifications",
-                        "Manage alerts", onClick = onNotificationsClick)
-                    ProfileMenuItem(Icons.Default.Lock, "Privacy & Security", "Password, 2FA")
-                    ProfileMenuItem(Icons.Default.Payment, "Payment Methods", "Cards, UPI, Wallets")
-                    ProfileMenuItem(Icons.Default.Receipt, "Transaction History", "View all payments")
+                ProfileSection(title = "Contact & Emergency (Bonus)") {
+                    if (!profile?.address.isNullOrBlank()) {
+                        ProfileMenuItem(
+                            icon = Icons.Default.LocationOn,
+                            title = "Address",
+                            subtitle = profile?.address ?: ""
+                        )
+                    }
+                    ProfileMenuItem(
+                        icon = Icons.Default.ContactPhone,
+                        title = "Emergency Contact",
+                        subtitle = if (!profile?.emergencyContact.isNullOrBlank())
+                            "Tap to dial: ${profile?.emergencyContact}"
+                        else
+                            "Tap Edit Profile to set emergency contact",
+                        onClick = {
+                            profile?.emergencyContact?.takeIf { it.isNotBlank() }?.let { num ->
+                                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$num"))
+                                context.startActivity(dialIntent)
+                            } ?: onEditClick()
+                        }
+                    )
                 }
             }
 
+            // Account & Settings Section
             item {
-                ProfileSection(title = "Support") {
-                    ProfileMenuItem(Icons.Default.Help, "Help Center", "FAQs and support")
-                    ProfileMenuItem(Icons.Default.Info, "About", "Version 1.0.0")
+                ProfileSection(title = "Account & Preferences") {
+                    ProfileMenuItem(
+                        icon = Icons.Default.Notifications,
+                        title = "Notifications & Reminders",
+                        subtitle = "Manage appointment & chat alerts",
+                        onClick = onNotificationsClick
+                    )
+                    ProfileMenuItem(
+                        icon = Icons.Default.Settings,
+                        title = "App Settings",
+                        subtitle = "Theme, biometrics, security",
+                        onClick = onSettingsClick
+                    )
                 }
             }
 
+            // Sign Out Action
             item {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = {
                         viewModel.logout()
@@ -164,8 +289,12 @@ fun ProfileScreen(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed)
                 ) {
-                    Icon(Icons.Default.Logout, contentDescription = null,
-                        tint = ErrorRed, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.Logout,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text("Sign Out", color = ErrorRed, fontWeight = FontWeight.SemiBold)
                 }
@@ -195,8 +324,13 @@ private fun ProfileStatCard(value: String, label: String, modifier: Modifier) {
 @Composable
 private fun ProfileSection(title: String, content: @Composable () -> Unit) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = TextSecondary, modifier = Modifier.padding(vertical = 8.dp))
+        Text(
+            title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextSecondary,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -235,7 +369,11 @@ private fun ProfileMenuItem(
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
             Text(subtitle, fontSize = 12.sp, color = TextSecondary)
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null,
-            tint = TextSecondary, modifier = Modifier.size(18.dp))
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = TextSecondary,
+            modifier = Modifier.size(18.dp)
+        )
     }
-}
+}
