@@ -119,15 +119,24 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("Should reject direct email and password login")
+    @DisplayName("Should successfully login with email and password")
     void testLoginWithEmailAndPasswordSuccess() {
         LoginRequest request = LoginRequest.builder()
                 .emailOrPhone("test@mediwise.com")
                 .password("secret123")
                 .build();
 
-        UnauthorizedException exception = assertThrows(UnauthorizedException.class, () -> authService.login(request));
-        assertEquals("A Firebase ID token is required to log in.", exception.getMessage());
+        when(userRepository.findByIdentifier("test@mediwise.com")).thenReturn(Optional.of(sampleUser));
+        when(passwordEncoder.matches("secret123", "hashedPassword123")).thenReturn(true);
+        when(jwtUtil.generateAccessToken(anyString(), anyMap())).thenReturn("mock.access.token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock.refresh.token");
+
+        AuthResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertEquals("mock.access.token", response.getAccessToken());
+        assertEquals("mock.refresh.token", response.getRefreshToken());
+        assertEquals("test@mediwise.com", response.getUser().getEmail());
     }
 
     @Test
@@ -138,8 +147,11 @@ class AuthServiceTest {
                 .password("wrongpassword")
                 .build();
 
+        when(userRepository.findByIdentifier("test@mediwise.com")).thenReturn(Optional.of(sampleUser));
+        when(passwordEncoder.matches("wrongpassword", "hashedPassword123")).thenReturn(false);
+
         UnauthorizedException exception = assertThrows(UnauthorizedException.class, () -> authService.login(request));
-        assertEquals("A Firebase ID token is required to log in.", exception.getMessage());
+        assertEquals("Incorrect password. Please try again.", exception.getMessage());
     }
 
     @Test
@@ -151,7 +163,6 @@ class AuthServiceTest {
 
         FirebaseToken firebaseToken = mock(FirebaseToken.class);
         when(firebaseToken.getUid()).thenReturn("firebase_uid_123");
-        doReturn(true).when(firebaseTokenVerifier).isEmailVerified(firebaseToken);
         when(firebaseTokenVerifier.verifyToken("mock_google_token_123")).thenReturn(firebaseToken);
         when(userRepository.findByFirebaseUid("firebase_uid_123")).thenReturn(Optional.of(sampleUser));
         when(jwtUtil.generateAccessToken(anyString(), anyMap())).thenReturn("mock.access.token");

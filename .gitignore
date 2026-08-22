@@ -31,6 +31,7 @@ android-app/.cxx/
 backend/src/main/resources/firebase-service-account.json
 # Google services config (Android — contains API keys)
 android-app/app/google-services.json
+**/google-services.json
 # Backend environment files with real secrets
 backend/.env
 backend/.env.local
