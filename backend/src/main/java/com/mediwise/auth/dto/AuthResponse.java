@@ -17,7 +17,7 @@ import java.util.UUID;
 public class AuthResponse {
     private String accessToken;
     private String refreshToken;
-    private long expiresIn;  // seconds
+    private long expiresIn;
     private UserInfo user;
 
     @Data
@@ -34,5 +34,10 @@ public class AuthResponse {
         private LocalDate dob;
 
         private User.Role role;
+
+        private UUID profileId;
+        private Boolean verified;
+        private String specialty;
+        private String profileImage;
     }
 }

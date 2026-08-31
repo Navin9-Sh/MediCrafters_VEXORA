@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { HospitalIcon, EyeIcon, EyeOffIcon, AlertCircleIcon } from '../components/common/Icons'
 
 export default function Login() {
   const [email, setEmail]       = useState('')
@@ -23,7 +24,7 @@ export default function Login() {
       await login(email, password)
       navigate('/')
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Login failed. Please try again.'
+      const msg = err?.response?.data?.message || err?.message || 'Login failed. Please verify credentials.'
       setError(msg)
     } finally {
       setLoading(false)
@@ -35,25 +36,27 @@ export default function Login() {
       <div className="login-card">
         {/* Brand */}
         <div className="login-brand">
-          <span className="login-brand-icon">🏥</span>
+          <div className="login-brand-icon">
+            <HospitalIcon size={32} />
+          </div>
           <h1 className="login-brand-name">MediWise</h1>
-          <p className="login-brand-sub">Admin Panel</p>
+          <p className="login-brand-sub">Clinical Administration Portal</p>
         </div>
 
-        <h2 className="login-title">Welcome back</h2>
-        <p className="login-subtitle">Sign in with your admin credentials</p>
+        <h2 className="login-title">Administrator Sign In</h2>
+        <p className="login-subtitle">Enter your authorized administrator credentials to continue</p>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <div className="form-group">
-            <label htmlFor="login-email" className="form-label">Email Address</label>
+            <label htmlFor="login-email" className="form-label">Admin Email / Phone</label>
             <input
               id="login-email"
-              type="email"
+              type="text"
               className="form-input"
-              placeholder="admin@mediwise.com"
+              placeholder="e.g. abhishek@admin.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              autoComplete="username"
               required
             />
           </div>
@@ -65,7 +68,7 @@ export default function Login() {
                 id="login-password"
                 type={showPass ? 'text' : 'password'}
                 className="form-input"
-                placeholder="Enter your password"
+                placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
@@ -77,14 +80,15 @@ export default function Login() {
                 onClick={() => setShowPass((p) => !p)}
                 aria-label={showPass ? 'Hide password' : 'Show password'}
               >
-                {showPass ? '🙈' : '👁️'}
+                {showPass ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
               </button>
             </div>
           </div>
 
           {error && (
             <div className="alert alert--error" role="alert">
-              ⚠️ {error}
+              <AlertCircleIcon size={18} className="alert-icon" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -94,13 +98,14 @@ export default function Login() {
             disabled={loading}
             id="login-submit-btn"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Authenticating...' : 'Sign In to Portal'}
           </button>
         </form>
 
-        <p className="login-footer">
-          MediWise Clinical Administration · Secure Access
-        </p>
+        <div className="login-footer">
+          <span>Protected Healthcare Information System</span>
+          <span>MediWise Clinical Governance v1.0.0</span>
+        </div>
       </div>
     </div>
   )

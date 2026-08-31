@@ -44,8 +44,8 @@ public class ProfileService {
         if (request.getDob() != null) profile.setDob(request.getDob());
         if (request.getBloodType() != null) profile.setBloodType(request.getBloodType());
         if (request.getGender() != null) profile.setGender(request.getGender());
-        if (request.getAddress() != null) profile.setAddress(request.getAddress());
-        if (request.getEmergencyContact() != null) profile.setEmergencyContact(request.getEmergencyContact());
+        if (request.getAddress() != null) profile.setAddress(request.getAddressAsString());
+        if (request.getEmergencyContact() != null) profile.setEmergencyContact(request.getEmergencyContactAsString());
         return profileRepository.save(profile);
     }
 

@@ -26,4 +26,6 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID>,
     Page<Doctor> search(@Param("search") String search, Pageable pageable);
 
     boolean existsByUserId(UUID userId);
+
+    long countByVerifiedFalse();
 }

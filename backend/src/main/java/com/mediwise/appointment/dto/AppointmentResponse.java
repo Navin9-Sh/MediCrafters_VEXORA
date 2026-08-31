@@ -26,6 +26,8 @@ public class AppointmentResponse {
     private Appointment.AppointmentType type;
     private String chiefComplaint;
     private String notes;
+    private String diagnosis;
+    private String prescription;
     private String cancelReason;
     private Instant createdAt;
     private Instant updatedAt;
@@ -50,6 +52,8 @@ public class AppointmentResponse {
                 .type(a.getType())
                 .chiefComplaint(a.getChiefComplaint())
                 .notes(a.getNotes())
+                .diagnosis(a.getDiagnosis())
+                .prescription(a.getPrescription())
                 .cancelReason(a.getCancelReason())
                 .createdAt(a.getCreatedAt())
                 .updatedAt(a.getUpdatedAt())

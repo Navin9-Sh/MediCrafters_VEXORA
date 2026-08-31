@@ -3,6 +3,7 @@ package com.mediwise.appointment.controller;
 import com.mediwise.appointment.dto.AppointmentResponse;
 import com.mediwise.appointment.dto.BookAppointmentRequest;
 import com.mediwise.appointment.dto.CancelRequest;
+import com.mediwise.appointment.dto.CompleteAppointmentRequest;
 import com.mediwise.appointment.service.AppointmentService;
 import com.mediwise.auth.model.User;
 import com.mediwise.common.response.ApiResponse;
@@ -63,5 +64,38 @@ public class AppointmentController {
             @RequestBody CancelRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
                 appointmentService.cancelAppointment(id, user, request)));
+    }
+
+    // ── Doctor-only endpoints ─────────────────────────────────────────────────
+
+    @PatchMapping("/{id}/start")
+    @Operation(summary = "Doctor starts the consultation call (CONFIRMED → IN_PROGRESS)")
+    @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> start(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user) {
+        return ResponseEntity.ok(ApiResponse.success(
+                appointmentService.startConsultation(id, user)));
+    }
+
+    @PatchMapping("/{id}/complete")
+    @Operation(summary = "Doctor completes consultation + saves clinical notes (IN_PROGRESS → COMPLETED)")
+    public ResponseEntity<ApiResponse<AppointmentResponse>> complete(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal User user,
+            @Valid @RequestBody CompleteAppointmentRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                appointmentService.completeAppointment(id, user, request)));
+    }
+
+    @GetMapping("/doctor")
+    @Operation(summary = "Doctor views their own appointment schedule")
+    public ResponseEntity<ApiResponse<PagedResponse<AppointmentResponse>>> getDoctorAppointments(
+            @AuthenticationPrincipal User user,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(ApiResponse.success(
+                PagedResponse.of(appointmentService.getDoctorAppointments(user, status, page, size))));
     }
 }

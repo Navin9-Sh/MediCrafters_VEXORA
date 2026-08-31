@@ -31,13 +31,21 @@ export default function Appointments() {
   useEffect(() => { fetchAppointments() }, [status])
 
   const columns = [
-    { key: 'id',           label: 'ID',      render: (r) => r.id?.slice(0, 8) + '...' },
-    { key: 'patientId',    label: 'Patient', render: (r) => r.patientId?.slice(0, 8) + '...' },
-    { key: 'doctorId',     label: 'Doctor',  render: (r) => r.doctorId?.slice(0, 8) + '...'  },
-    { key: 'slotDate',     label: 'Date' },
-    { key: 'slotStartTime',label: 'Time' },
-    { key: 'type',         label: 'Type'   },
-    { key: 'status',       label: 'Status', render: (r) => <Badge status={r.status} /> },
+    { key: 'id',            label: 'Reference ID', render: (r) => <code style={{ fontSize: '0.75rem', background: '#f8fafc', padding: '2px 6px', borderRadius: '4px' }}>{r.id?.slice(0, 8)}...</code> },
+    { key: 'patientName',   label: 'Patient', render: (r) => <span style={{ fontWeight: 600 }}>{r.patientName || (r.patientId ? `Patient #${r.patientId.slice(0, 6)}` : '—')}</span> },
+    { key: 'doctorName',    label: 'Assigned Doctor', render: (r) => r.doctorName ? `Dr. ${r.doctorName}` : (r.doctorId ? `Dr. #${r.doctorId.slice(0, 6)}` : 'Unassigned') },
+    { key: 'scheduledDate', label: 'Consultation Date', render: (r) => r.scheduledDate || r.slotDate || '—' },
+    { key: 'scheduledTime', label: 'Time Slot', render: (r) => r.scheduledTime || r.slotStartTime || '—' },
+    {
+      key: 'type',
+      label: 'Channel',
+      render: (r) => (
+        <span className="badge badge--blue-light">
+          {r.type || 'VIDEO_CALL'}
+        </span>
+      ),
+    },
+    { key: 'status',        label: 'Status', render: (r) => <Badge status={r.status} /> },
   ]
 
   if (error) return <ErrorState message={error} onRetry={fetchAppointments} />
@@ -45,20 +53,25 @@ export default function Appointments() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Appointments</h1>
-        <p className="page-subtitle">View and manage all patient appointments</p>
+        <div>
+          <h1 className="page-title">Appointment Oversight</h1>
+          <p className="page-subtitle">Monitor patient consultation bookings, schedules, and fulfillment statuses across the platform</p>
+        </div>
+        <button className="btn btn-outline btn-sm" onClick={fetchAppointments}>
+          Refresh Appointments
+        </button>
       </div>
 
       <div className="filter-bar">
         <select
           id="appointment-status-filter"
           className="form-input"
-          style={{ maxWidth: '200px' }}
+          style={{ maxWidth: '240px' }}
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
           {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s || 'All Statuses'}</option>
+            <option key={s} value={s}>{s ? `Status: ${s}` : 'All Consultation Statuses'}</option>
           ))}
         </select>
       </div>
@@ -68,7 +81,7 @@ export default function Appointments() {
           columns={columns}
           data={appointments}
           loading={loading}
-          emptyMessage="No appointments found."
+          emptyMessage="No consultation bookings found for the selected filter."
         />
       </div>
     </div>

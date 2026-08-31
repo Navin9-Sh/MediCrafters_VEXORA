@@ -42,15 +42,17 @@ public class PaymentController {
     }
 
     @PostMapping("/webhook")
-    @Operation(summary = "Razorpay webhook (HMAC verified, no JWT auth)")
+    @Operation(summary = "Razorpay webhook (HMAC verified, no JWT auth) — server-side reconciliation")
     public ResponseEntity<Void> webhook(
             @RequestBody String payload,
             @RequestHeader("X-Razorpay-Signature") String signature) {
+        // Verify the request actually came from Razorpay (not a spoofed call)
         if (!razorpayService.verifyWebhookSignature(payload, signature)) {
-            log.warn("Razorpay webhook signature mismatch");
+            log.warn("Razorpay webhook signature mismatch — ignoring");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        // TODO: parse event, reconcile payment status
+        // Process: if payment.captured event, confirm the appointment
+        razorpayService.processWebhookEvent(payload);
         return ResponseEntity.ok().build();
     }
 }

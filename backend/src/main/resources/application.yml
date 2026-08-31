@@ -124,7 +124,7 @@ springdoc:
 
 logging:
   level:
-    com.clinicalsystem: INFO
+    com.mediwise: INFO
     org.springframework.security: WARN
     org.hibernate.SQL: WARN
   pattern:

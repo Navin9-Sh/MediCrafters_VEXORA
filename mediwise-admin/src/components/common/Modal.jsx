@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { XIcon } from './Icons'
 
 export default function Modal({ isOpen, title, children, onClose, onConfirm, confirmText = 'Confirm', confirmVariant = 'danger', loading }) {
   useEffect(() => {
@@ -11,10 +12,12 @@ export default function Modal({ isOpen, title, children, onClose, onConfirm, con
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="modal-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className="modal-header">
           <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            <XIcon size={16} />
+          </button>
         </div>
         <div className="modal-body">{children}</div>
         {onConfirm && (

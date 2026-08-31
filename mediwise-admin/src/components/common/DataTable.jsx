@@ -1,3 +1,5 @@
+import { InboxIcon } from './Icons'
+
 export default function DataTable({ columns, data, loading, emptyMessage = 'No records found.' }) {
   if (loading) {
     return (
@@ -11,7 +13,9 @@ export default function DataTable({ columns, data, loading, emptyMessage = 'No r
   if (!data || data.length === 0) {
     return (
       <div className="table-empty">
-        <span className="table-empty-icon">📭</span>
+        <div className="table-empty-icon-container">
+          <InboxIcon size={40} />
+        </div>
         <p>{emptyMessage}</p>
       </div>
     )

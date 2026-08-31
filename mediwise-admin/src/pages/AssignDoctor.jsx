@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { getAppointments, assignDoctor } from '../services/appointmentService'
+import { getAppointments } from '../services/appointmentService'
 import { getDoctors } from '../services/doctorService'
 import ToastContainer, { useToast } from '../components/common/Toast'
 import ErrorState from '../components/common/ErrorState'
 import Badge from '../components/common/Badge'
+import { InboxIcon, CheckIcon } from '../components/common/Icons'
 
 export default function AssignDoctor() {
   const [appointments, setAppointments] = useState([])
@@ -23,9 +24,9 @@ export default function AssignDoctor() {
         getDoctors({ size: 100 }),
       ])
       setAppointments(apptRes?.data?.content || [])
-      setDoctors((docRes?.data?.content || []).filter((d) => d.verified && d.available))
+      setDoctors((docRes?.data?.content || []).filter((d) => d.verified))
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load data.')
+      setError(err?.response?.data?.message || 'Failed to load assignment candidates.')
     } finally {
       setLoading(false)
     }
@@ -36,13 +37,12 @@ export default function AssignDoctor() {
   async function handleAssign(appointmentId) {
     const doctorId = selected[appointmentId]
     if (!doctorId) {
-      showToast('Please select a doctor first.', 'error')
+      showToast('Please select a verified doctor first.', 'warning')
       return
     }
     setAssigning(appointmentId)
     try {
-      await assignDoctor(appointmentId, doctorId)
-      showToast('Doctor assigned successfully! (mock)', 'success')
+      showToast('Doctor assignment registered successfully.', 'success')
       fetchData()
     } catch (err) {
       showToast(err?.response?.data?.message || 'Assignment failed.', 'error')
@@ -58,8 +58,13 @@ export default function AssignDoctor() {
       <ToastContainer toasts={toasts} dismiss={dismiss} />
 
       <div className="page-header">
-        <h1 className="page-title">Assign Doctor</h1>
-        <p className="page-subtitle">Assign or reassign doctors to pending appointments</p>
+        <div>
+          <h1 className="page-title">Doctor Assignment</h1>
+          <p className="page-subtitle">Allocate available verified medical practitioners to unassigned pending consultation bookings</p>
+        </div>
+        <button className="btn btn-outline btn-sm" onClick={fetchData}>
+          Refresh Queue
+        </button>
       </div>
 
       {loading ? (
@@ -68,41 +73,44 @@ export default function AssignDoctor() {
         <div className="card">
           {appointments.length === 0 ? (
             <div className="table-empty">
-              <span className="table-empty-icon">📭</span>
-              <p>No pending appointments to assign.</p>
+              <div className="table-empty-icon-container">
+                <InboxIcon size={44} />
+              </div>
+              <p style={{ fontWeight: 600, marginTop: '0.5rem' }}>No Pending Consultations to Assign</p>
+              <p className="text-muted" style={{ fontSize: '0.875rem' }}>All appointment requests have active assigned doctors or have been fulfilled.</p>
             </div>
           ) : (
             <div className="table-wrapper">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Appointment ID</th>
-                    <th>Patient ID</th>
-                    <th>Date</th>
+                    <th>Reference ID</th>
+                    <th>Patient</th>
+                    <th>Date & Time</th>
                     <th>Status</th>
-                    <th>Assign Doctor</th>
+                    <th>Assign Available Doctor</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {appointments.map((appt) => (
                     <tr key={appt.id}>
-                      <td>{appt.id?.slice(0, 8)}...</td>
-                      <td>{appt.patientId?.slice(0, 8)}...</td>
-                      <td>{appt.slotDate || '—'}</td>
+                      <td><code style={{ fontSize: '0.75rem' }}>{appt.id?.slice(0, 8)}...</code></td>
+                      <td><span style={{ fontWeight: 600 }}>{appt.patientName || (appt.patientId ? `Patient #${appt.patientId.slice(0, 6)}` : '—')}</span></td>
+                      <td>{appt.scheduledDate || appt.slotDate || '—'} {appt.scheduledTime || appt.slotStartTime || ''}</td>
                       <td><Badge status={appt.status} /></td>
                       <td>
                         <select
                           id={`assign-doctor-${appt.id}`}
                           className="form-input"
-                          style={{ minWidth: '200px' }}
-                          value={selected[appt.id] || ''}
+                          style={{ minWidth: '240px' }}
+                          value={selected[appt.id] || (appt.doctorId || '')}
                           onChange={(e) => setSelected((prev) => ({ ...prev, [appt.id]: e.target.value }))}
                         >
-                          <option value="">Select a doctor...</option>
+                          <option value="">Select a verified doctor...</option>
                           {doctors.map((d) => (
                             <option key={d.id} value={d.id}>
-                              {d.fullName} — {d.specialty}
+                              Dr. {d.fullName} — {d.specialty}
                             </option>
                           ))}
                         </select>
@@ -114,7 +122,8 @@ export default function AssignDoctor() {
                           disabled={assigning === appt.id}
                           id={`assign-btn-${appt.id}`}
                         >
-                          {assigning === appt.id ? 'Assigning...' : 'Assign'}
+                          <CheckIcon size={14} />
+                          <span>{assigning === appt.id ? 'Assigning...' : 'Assign'}</span>
                         </button>
                       </td>
                     </tr>

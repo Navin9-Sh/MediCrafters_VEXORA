@@ -44,6 +44,13 @@ public class Appointment {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Doctor fills these when completing the consultation
+    @Column(columnDefinition = "TEXT")
+    private String diagnosis;
+
+    @Column(columnDefinition = "TEXT")
+    private String prescription;
+
     @Column(name = "cancelled_by")
     private UUID cancelledBy;
 

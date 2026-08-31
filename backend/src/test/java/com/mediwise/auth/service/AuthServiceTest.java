@@ -45,6 +45,9 @@ class AuthServiceTest {
     @Mock
     private PatientProfileRepository patientProfileRepository;
 
+    @Mock
+    private com.mediwise.doctor.repository.DoctorRepository doctorRepository;
+
     @InjectMocks
     private AuthService authService;
 
@@ -101,6 +104,57 @@ class AuthServiceTest {
 
         verify(userRepository).save(any(User.class));
         verify(patientProfileRepository).save(any(PatientProfile.class));
+    }
+
+    @Test
+    @DisplayName("Should successfully register new doctor and create Doctor record")
+    void testRegisterDoctorSuccess() {
+        User doctorUser = User.builder()
+                .id(UUID.randomUUID())
+                .email("doctor@mediwise.com")
+                .fullName("Dr. Gregory House")
+                .role(User.Role.DOCTOR)
+                .active(true)
+                .build();
+
+        RegisterRequest request = RegisterRequest.builder()
+                .fullName("Dr. Gregory House")
+                .email("doctor@mediwise.com")
+                .password("doctor123")
+                .role(User.Role.DOCTOR)
+                .specialty("Diagnostics")
+                .licenseNumber("DOC-12345")
+                .experienceYears(15)
+                .build();
+
+        when(userRepository.existsByEmail("doctor@mediwise.com")).thenReturn(false);
+        when(passwordEncoder.encode("doctor123")).thenReturn("hashedDoctor123");
+        when(userRepository.save(any(User.class))).thenReturn(doctorUser);
+        when(jwtUtil.generateAccessToken(anyString(), anyMap())).thenReturn("mock.access.token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock.refresh.token");
+
+        AuthResponse response = authService.register(request);
+
+        assertNotNull(response);
+        assertEquals(User.Role.DOCTOR, response.getUser().getRole());
+        verify(userRepository).save(any(User.class));
+        verify(doctorRepository).save(any(com.mediwise.doctor.model.Doctor.class));
+    }
+
+    @Test
+    @DisplayName("Should reject registration if role is ADMIN")
+    void testRegisterAdminFails() {
+        RegisterRequest request = RegisterRequest.builder()
+                .fullName("Malicious Actor")
+                .email("hacker@example.com")
+                .password("password123")
+                .role(User.Role.ADMIN)
+                .build();
+
+        when(userRepository.existsByEmail("hacker@example.com")).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> authService.register(request));
+        assertEquals("FORBIDDEN_ROLE", ex.getCode());
     }
 
     @Test
@@ -164,6 +218,7 @@ class AuthServiceTest {
         FirebaseToken firebaseToken = mock(FirebaseToken.class);
         when(firebaseToken.getUid()).thenReturn("firebase_uid_123");
         when(firebaseTokenVerifier.verifyToken("mock_google_token_123")).thenReturn(firebaseToken);
+        when(firebaseTokenVerifier.extractEmail(firebaseToken)).thenReturn("test@mediwise.com");
         when(userRepository.findByFirebaseUid("firebase_uid_123")).thenReturn(Optional.of(sampleUser));
         when(jwtUtil.generateAccessToken(anyString(), anyMap())).thenReturn("mock.access.token");
         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock.refresh.token");
@@ -173,6 +228,63 @@ class AuthServiceTest {
         assertNotNull(response);
         assertEquals("mock.access.token", response.getAccessToken());
         assertEquals(sampleUser.getEmail(), response.getUser().getEmail());
+    }
+
+    @Test
+    @DisplayName("Should auto-register new user on first-time Google sign-in")
+    void testLoginGoogleSignInAutoRegister() {
+        LoginRequest request = LoginRequest.builder()
+                .firebaseIdToken("google_id_token")
+                .build();
+
+        FirebaseToken firebaseToken = mock(FirebaseToken.class);
+        when(firebaseToken.getUid()).thenReturn("google_uid_999");
+        when(firebaseTokenVerifier.verifyToken("google_id_token")).thenReturn(firebaseToken);
+        when(firebaseTokenVerifier.extractEmail(firebaseToken)).thenReturn("newgoogle@mediwise.com");
+        when(firebaseTokenVerifier.extractName(firebaseToken)).thenReturn("Google User");
+        when(firebaseTokenVerifier.extractPicture(firebaseToken)).thenReturn("https://avatar.com/photo.jpg");
+        when(firebaseTokenVerifier.extractPhone(firebaseToken)).thenReturn("+919999988888");
+
+        when(userRepository.findByFirebaseUid("google_uid_999")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("newgoogle@mediwise.com")).thenReturn(Optional.empty());
+
+        User createdUser = User.builder()
+                .id(UUID.randomUUID())
+                .firebaseUid("google_uid_999")
+                .email("newgoogle@mediwise.com")
+                .fullName("Google User")
+                .role(User.Role.PATIENT)
+                .active(true)
+                .build();
+
+        when(userRepository.save(any(User.class))).thenReturn(createdUser);
+        when(jwtUtil.generateAccessToken(anyString(), anyMap())).thenReturn("mock.access.token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock.refresh.token");
+
+        AuthResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertEquals("newgoogle@mediwise.com", response.getUser().getEmail());
+        verify(userRepository).save(any(User.class));
+        verify(patientProfileRepository).save(any(PatientProfile.class));
+    }
+
+    @Test
+    @DisplayName("Should successfully change password for user")
+    void testChangePasswordSuccess() {
+        ChangePasswordRequest request = ChangePasswordRequest.builder()
+                .currentPassword("secret123")
+                .newPassword("newSecret456")
+                .build();
+
+        when(userRepository.findById(sampleUserId)).thenReturn(Optional.of(sampleUser));
+        when(passwordEncoder.matches("secret123", "hashedPassword123")).thenReturn(true);
+        when(passwordEncoder.encode("newSecret456")).thenReturn("hashedNewSecret456");
+
+        authService.changePassword(sampleUserId, request);
+
+        verify(userRepository).save(sampleUser);
+        assertEquals("hashedNewSecret456", sampleUser.getPasswordHash());
     }
 
     @Test

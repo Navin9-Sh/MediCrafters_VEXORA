@@ -11,7 +11,8 @@ import org.springframework.stereotype.Repository;
 import java.util.UUID;
 
 @Repository
-public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
+public interface AppointmentRepository extends JpaRepository<Appointment, UUID>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<Appointment> {
 
     Page<Appointment> findByPatientIdOrderByCreatedAtDesc(UUID patientId, Pageable pageable);
 
@@ -22,6 +23,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             UUID patientId, java.util.Collection<Appointment.AppointmentStatus> statuses, Pageable pageable);
 
     Page<Appointment> findByDoctorIdOrderByCreatedAtDesc(UUID doctorId, Pageable pageable);
+
+    Page<Appointment> findByDoctorIdAndStatusInOrderByCreatedAtDesc(
+            UUID doctorId, java.util.Collection<Appointment.AppointmentStatus> statuses, Pageable pageable);
 
     @Query("SELECT COUNT(a) FROM Appointment a WHERE a.doctorId = :doctorId " +
            "AND a.status IN ('PENDING','CONFIRMED','IN_PROGRESS')")

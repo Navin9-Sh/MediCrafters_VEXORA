@@ -1,6 +1,7 @@
 package com.mediwise.auth.controller;
 
 import com.mediwise.auth.dto.*;
+import com.mediwise.auth.model.User;
 import com.mediwise.auth.service.AuthService;
 import com.mediwise.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -69,20 +70,44 @@ public class AuthController {
 
     @GetMapping("/me")
     @Operation(summary = "Get current authenticated user information")
-    public ResponseEntity<ApiResponse<AuthResponse.UserInfo>> getCurrentUser(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
+    public ResponseEntity<ApiResponse<AuthResponse.UserInfo>> getCurrentUser(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal User currentUser,
+            Authentication authentication) {
+        UUID userId = null;
+        if (currentUser != null && currentUser.getId() != null) {
+            userId = currentUser.getId();
+        } else if (authentication != null && authentication.getName() != null) {
+            try {
+                userId = UUID.fromString(authentication.getName());
+            } catch (IllegalArgumentException ignored) {}
+        }
+
+        if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID userId = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(ApiResponse.success(authService.getCurrentUser(userId)));
+    }
+
+    @PostMapping("/change-password")
+    @Operation(summary = "Change password for authenticated user")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal User currentUser,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        if (currentUser == null || currentUser.getId() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        authService.changePassword(currentUser.getId(), request);
+        return ResponseEntity.ok(ApiResponse.message("Password changed successfully"));
     }
 
     @PostMapping("/logout")
     @Operation(summary = "Invalidate user access token")
     public ResponseEntity<ApiResponse<Void>> logout(
-            @RequestHeader("Authorization") String authHeader) {
-        String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
-        authService.logout(token);
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader != null && !authHeader.isBlank()) {
+            String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
+            authService.logout(token);
+        }
         return ResponseEntity.ok(ApiResponse.message("Logged out successfully"));
     }
 }

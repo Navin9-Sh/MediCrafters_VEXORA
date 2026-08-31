@@ -4,29 +4,38 @@ import { loginWithEmailPassword, logout as logoutService } from '../services/aut
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(null)
-  const [token, setToken]     = useState(null)
+  const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // ── Restore session from localStorage on first load ────────────────────────
   useEffect(() => {
-    const savedToken = localStorage.getItem('mediwise_admin_token')
-    const savedUser  = localStorage.getItem('mediwise_admin_user')
-    if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+    try {
+      const savedToken = localStorage.getItem('mediwise_admin_token')
+      const savedUser = localStorage.getItem('mediwise_admin_user')
+      if (savedToken && savedUser && savedUser !== 'undefined' && savedUser !== 'null') {
+        const parsed = JSON.parse(savedUser)
+        if (parsed && (parsed.role === 'ADMIN' || parsed.role === 'ROLE_ADMIN')) {
+          setToken(savedToken)
+          setUser(parsed)
+        } else {
+          localStorage.removeItem('mediwise_admin_token')
+          localStorage.removeItem('mediwise_admin_user')
+        }
+      }
+    } catch (e) {
+      localStorage.removeItem('mediwise_admin_token')
+      localStorage.removeItem('mediwise_admin_user')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
-  // ── Login ──────────────────────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
     const response = await loginWithEmailPassword(email, password)
     const { accessToken, user: userData } = response.data
 
-    // Security: only allow ADMIN role users to access this panel
-    if (userData.role !== 'ADMIN') {
-      throw new Error('Access denied. Admin credentials required.')
+    if (userData.role !== 'ADMIN' && userData.role !== 'ROLE_ADMIN') {
+      throw new Error('Access denied. Administrator privileges required.')
     }
 
     localStorage.setItem('mediwise_admin_token', accessToken)
@@ -35,9 +44,10 @@ export function AuthProvider({ children }) {
     setUser(userData)
   }, [])
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
-    await logoutService()
+    try {
+      await logoutService()
+    } catch (ignored) {}
     setToken(null)
     setUser(null)
   }, [])

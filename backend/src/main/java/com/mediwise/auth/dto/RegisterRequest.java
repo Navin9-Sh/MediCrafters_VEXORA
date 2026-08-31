@@ -37,4 +37,9 @@ public class RegisterRequest {
 
     @Builder.Default
     private User.Role role = User.Role.PATIENT;
+    private String specialty;
+    private String licenseNumber;
+    private Integer experienceYears;
+    private String bio;
+    private java.math.BigDecimal consultationFee;
 }

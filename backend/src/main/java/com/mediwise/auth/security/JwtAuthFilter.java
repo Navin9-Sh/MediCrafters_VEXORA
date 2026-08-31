@@ -1,16 +1,17 @@
 package com.mediwise.auth.security;
 
+import com.google.firebase.auth.FirebaseToken;
 import com.mediwise.auth.model.User;
 import com.mediwise.auth.repository.UserRepository;
-import com.google.firebase.auth.FirebaseToken;
+import com.mediwise.common.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -27,9 +28,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    private final JwtUtil jwtUtil;
     private final FirebaseTokenVerifier firebaseTokenVerifier;
     private final UserRepository userRepository;
-    
+
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
@@ -45,25 +47,60 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        String token = authHeader.substring(7);
+        String token = authHeader.substring(7).trim();
+        if (token.isEmpty()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
+        // 1. Try verifying as MediWise internal JWT token
+        if (jwtUtil.isTokenValid(token)) {
+            try {
+                String jti = jwtUtil.extractJti(token);
+                if (redisTemplate != null && jti != null) {
+                    Boolean isBlacklisted = (Boolean) redisTemplate.opsForValue().get("blacklist:" + jti);
+                    if (Boolean.TRUE.equals(isBlacklisted)) {
+                        log.debug("Token with JTI {} is blacklisted", jti);
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                }
+
+                String subject = jwtUtil.extractSubject(token);
+                if (subject != null) {
+                    UUID userId = UUID.fromString(subject);
+                    User user = userRepository.findById(userId).orElse(null);
+                    if (user != null && user.isActive()) {
+                        var authentication = new UsernamePasswordAuthenticationToken(
+                                user,
+                                null,
+                                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                        );
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("Failed processing MediWise JWT token: {}", e.getMessage());
+            }
+        }
+
+        // 2. Fallback: Check if token is a direct Firebase ID token
         try {
             FirebaseToken firebaseToken = firebaseTokenVerifier.verifyToken(token);
-            if (!firebaseTokenVerifier.isEmailVerified(firebaseToken)) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-            User user = userRepository.findByFirebaseUid(firebaseToken.getUid()).orElse(null);
+            String uid = firebaseToken.getUid();
+            User user = userRepository.findByFirebaseUid(uid).orElse(null);
             if (user != null && user.isActive()) {
-            var authentication = new UsernamePasswordAuthenticationToken(
-                    user,
-                    null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-            );
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                var authentication = new UsernamePasswordAuthenticationToken(
+                        user,
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                );
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } catch (RuntimeException e) {
-            log.debug("Rejected Firebase bearer token: {}", e.getMessage());
+        } catch (Exception e) {
+            log.debug("Rejected Bearer token as Firebase token: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);

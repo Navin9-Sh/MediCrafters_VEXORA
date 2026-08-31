@@ -90,6 +90,26 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("FILE_TOO_LARGE", "File exceeds maximum allowed size of 10MB", null));
     }
 
+    // ── 405 Method Not Allowed ──────────────────────────────────────────────
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error(
+                        "METHOD_NOT_ALLOWED", "HTTP method " + ex.getMethod()
+                                + " is not supported for this endpoint. Expected: " + ex.getSupportedHttpMethods(),
+                        null));
+    }
+
+    // ── 400 Bad Request / Unreadable Body ────────────────────────────────────
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(
+            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("MALFORMED_REQUEST",
+                        "Malformed JSON request body: " + ex.getMostSpecificCause().getMessage(), null));
+    }
+
     // ── 500 Unknown / Catch-All ─────────────────────────────────────────────
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
@@ -99,7 +119,6 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(
                         "INTERNAL_ERROR",
                         "An unexpected error occurred. Please contact support.",
-                        correlationId
-                ));
+                        correlationId));
     }
 }

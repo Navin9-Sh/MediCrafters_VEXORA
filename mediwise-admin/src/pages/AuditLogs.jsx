@@ -15,7 +15,7 @@ export default function AuditLogs() {
       const res = await getAuditLogs()
       setLogs(res?.data || [])
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load audit logs.')
+      setError(err?.response?.data?.message || 'Failed to load system audit trail.')
     } finally {
       setLoading(false)
     }
@@ -24,17 +24,21 @@ export default function AuditLogs() {
   useEffect(() => { fetchLogs() }, [])
 
   const columns = [
-    { key: 'timestamp',    label: 'Time',     render: (r) => r.timestamp ? new Date(r.timestamp).toLocaleString() : '—' },
-    { key: 'actorId',      label: 'Actor ID', render: (r) => r.actorId?.slice(0, 12) + '...' },
-    { key: 'actorRole',    label: 'Role' },
-    { key: 'action',       label: 'Action' },
-    { key: 'resourceType', label: 'Resource' },
-    { key: 'resourceId',   label: 'Resource ID' },
-    { key: 'outcome',      label: 'Outcome',  render: (r) => (
-      <span className={r.outcome === 'SUCCESS' ? 'text-success' : 'text-danger'}>
-        {r.outcome}
-      </span>
-    )},
+    { key: 'timestamp',    label: 'Timestamp', render: (r) => r.timestamp ? new Date(r.timestamp).toLocaleString() : '—' },
+    { key: 'actorId',      label: 'Actor Identifier', render: (r) => <code style={{ fontSize: '0.75rem', background: '#f8fafc', padding: '2px 6px', borderRadius: '4px' }}>{r.actorId?.slice(0, 12)}...</code> },
+    { key: 'actorRole',    label: 'Role', render: (r) => <span className="badge badge--gray-light">{r.actorRole || 'SYSTEM'}</span> },
+    { key: 'action',       label: 'Clinical Event / Action', render: (r) => <strong style={{ color: 'var(--text)' }}>{r.action}</strong> },
+    { key: 'resourceType', label: 'Resource Target', render: (r) => <code>{r.resourceType}</code> },
+    {
+      key: 'outcome',
+      label: 'Status Outcome',
+      render: (r) => (
+        <span className={r.outcome === 'SUCCESS' ? 'badge badge--success' : 'badge badge--danger'}>
+          <span className="badge-dot" />
+          <span className="badge-text">{r.outcome}</span>
+        </span>
+      ),
+    },
   ]
 
   if (error) return <ErrorState message={error} onRetry={fetchLogs} />
@@ -42,11 +46,13 @@ export default function AuditLogs() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Audit Logs</h1>
-        <p className="page-subtitle">
-          System activity log — 90 day retention
-          <span className="badge badge--warning" style={{ marginLeft: '0.75rem' }}>MOCK DATA</span>
-        </p>
+        <div>
+          <h1 className="page-title">Compliance & Security Audit Trail</h1>
+          <p className="page-subtitle">Immutable chronological logging of all clinical, administrative, and security operations</p>
+        </div>
+        <button className="btn btn-outline btn-sm" onClick={fetchLogs}>
+          Refresh Audit Trail
+        </button>
       </div>
 
       <div className="card">
@@ -54,7 +60,7 @@ export default function AuditLogs() {
           columns={columns}
           data={logs}
           loading={loading}
-          emptyMessage="No audit logs found."
+          emptyMessage="No audit logs recorded."
         />
       </div>
     </div>

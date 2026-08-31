@@ -8,20 +8,22 @@ import com.mediwise.common.exception.BusinessException;
 import com.mediwise.common.exception.ResourceNotFoundException;
 import com.mediwise.common.exception.UnauthorizedException;
 import com.mediwise.common.util.JwtUtil;
+import com.mediwise.doctor.model.Doctor;
+import com.mediwise.doctor.repository.DoctorRepository;
 import com.mediwise.profile.model.PatientProfile;
 import com.mediwise.profile.repository.PatientProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -33,6 +35,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final PatientProfileRepository patientProfileRepository;
+    private final DoctorRepository doctorRepository;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -53,18 +56,27 @@ public class AuthService {
             throw new BusinessException("PHONE_TAKEN", "This phone number is already associated with an account.");
         }
 
-        if (request.getFirebaseIdToken() == null || request.getFirebaseIdToken().isBlank()) {
-            throw new UnauthorizedException("A Firebase ID token is required to register.");
-        }
-        var firebaseToken = firebaseTokenVerifier.verifyToken(request.getFirebaseIdToken());
-        String firebaseUid = firebaseToken.getUid();
-        if (userRepository.existsByFirebaseUid(firebaseUid)) {
-            throw new BusinessException("ALREADY_REGISTERED", "An account with this Firebase identity already exists.");
+        String firebaseUid = null;
+        if (request.getFirebaseIdToken() != null && !request.getFirebaseIdToken().isBlank()) {
+            var firebaseToken = firebaseTokenVerifier.verifyToken(request.getFirebaseIdToken());
+            firebaseUid = firebaseToken.getUid();
+            if (userRepository.existsByFirebaseUid(firebaseUid)) {
+                throw new BusinessException("ALREADY_REGISTERED", "An account with this Firebase identity already exists.");
+            }
         }
 
         String passwordHash = null;
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            if (request.getPassword().length() < 6) {
+                throw new BusinessException("INVALID_PASSWORD", "Password must be at least 6 characters.");
+            }
             passwordHash = passwordEncoder.encode(request.getPassword());
+        } else if (firebaseUid == null) {
+            throw new BusinessException("PASSWORD_REQUIRED", "Password is required when not using Firebase authentication.");
+        }
+
+        if (request.getRole() == User.Role.ADMIN) {
+            throw new BusinessException("FORBIDDEN_ROLE", "Admin accounts cannot be registered publicly.");
         }
 
         User user = User.builder()
@@ -80,7 +92,6 @@ public class AuthService {
 
         user = userRepository.save(user);
 
-        // Automatically create associated PatientProfile if registering as PATIENT
         if (user.getRole() == User.Role.PATIENT) {
             PatientProfile profile = PatientProfile.builder()
                     .userId(user.getId())
@@ -88,44 +99,100 @@ public class AuthService {
                     .dob(user.getDob())
                     .build();
             patientProfileRepository.save(profile);
+        } else if (user.getRole() == User.Role.DOCTOR) {
+            String specialty = (request.getSpecialty() != null && !request.getSpecialty().isBlank())
+                    ? request.getSpecialty().trim() : "General Medicine";
+            Doctor doctor = Doctor.builder()
+                    .userId(user.getId())
+                    .fullName(user.getFullName() != null ? user.getFullName() : "Dr. " + email)
+                    .specialty(specialty)
+                    .licenseNumber(request.getLicenseNumber() != null ? request.getLicenseNumber().trim() : null)
+                    .experienceYears(request.getExperienceYears() != null ? request.getExperienceYears() : 0)
+                    .consultationFee(request.getConsultationFee() != null ? request.getConsultationFee() : BigDecimal.valueOf(500))
+                    .bio(request.getBio())
+                    .available(true)
+                    .verified(false)
+                    .specialties(new HashSet<>(List.of(specialty)))
+                    .build();
+            doctorRepository.save(doctor);
         }
 
         log.info("New user registered successfully: {} [{}]", user.getEmail(), user.getRole());
         return buildAuthResponse(user);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         User user;
 
         if (request.getFirebaseIdToken() != null && !request.getFirebaseIdToken().isBlank()) {
-            // ── Mobile App: Firebase token login ──────────────────────────────
             var firebaseToken = firebaseTokenVerifier.verifyToken(request.getFirebaseIdToken());
-            // if (!firebaseTokenVerifier.isEmailVerified(firebaseToken)) {
-            // throw new UnauthorizedException("Please verify your email before logging
-            // in.");
-            // }
             String firebaseUid = firebaseToken.getUid();
-            user = userRepository.findByFirebaseUid(firebaseUid)
-                    .or(() -> request.getEmailOrPhone() != null
-                            ? userRepository.findByIdentifier(request.getEmailOrPhone().trim())
-                            : java.util.Optional.empty())
-                    .orElseThrow(() -> new UnauthorizedException("Account not found. Please register first."));
+            String firebaseEmail = firebaseTokenVerifier.extractEmail(firebaseToken);
+            String firebaseName = firebaseTokenVerifier.extractName(firebaseToken);
+            String firebasePicture = firebaseTokenVerifier.extractPicture(firebaseToken);
+            String firebasePhone = firebaseTokenVerifier.extractPhone(firebaseToken);
+
+            var userOpt = userRepository.findByFirebaseUid(firebaseUid);
+            if (userOpt.isEmpty() && firebaseEmail != null && !firebaseEmail.isBlank()) {
+                userOpt = userRepository.findByEmail(firebaseEmail).map(existingUser -> {
+                    if (existingUser.getFirebaseUid() == null || !existingUser.getFirebaseUid().equals(firebaseUid)) {
+                        existingUser.setFirebaseUid(firebaseUid);
+                        return userRepository.save(existingUser);
+                    }
+                    return existingUser;
+                });
+            }
+
+            if (userOpt.isEmpty() && request.getEmailOrPhone() != null && !request.getEmailOrPhone().isBlank()) {
+                userOpt = userRepository.findByIdentifier(request.getEmailOrPhone().trim()).map(existingUser -> {
+                    if (existingUser.getFirebaseUid() == null) {
+                        existingUser.setFirebaseUid(firebaseUid);
+                        return userRepository.save(existingUser);
+                    }
+                    return existingUser;
+                });
+            }
+
+            if (userOpt.isPresent()) {
+                user = userOpt.get();
+            } else {
+                if (firebaseEmail == null || firebaseEmail.isBlank()) {
+                    throw new UnauthorizedException("Firebase token does not contain a valid email address.");
+                }
+                user = User.builder()
+                        .firebaseUid(firebaseUid)
+                        .email(firebaseEmail)
+                        .fullName(firebaseName != null ? firebaseName : "User")
+                        .phone(firebasePhone)
+                        .role(User.Role.PATIENT)
+                        .active(true)
+                        .build();
+                user = userRepository.save(user);
+
+                PatientProfile profile = PatientProfile.builder()
+                        .userId(user.getId())
+                        .fullName(user.getFullName())
+                        .profileImage(firebasePicture)
+                        .build();
+                patientProfileRepository.save(profile);
+                log.info("Auto-registered new patient account via Google/Firebase login: {}", user.getEmail());
+            }
 
         } else if (request.getEmailOrPhone() != null && !request.getEmailOrPhone().isBlank()
                 && request.getPassword() != null && !request.getPassword().isBlank()) {
-            // ── Admin Web Panel / Postman: direct email+password login ─────────
             user = userRepository.findByIdentifier(request.getEmailOrPhone().trim())
                     .orElseThrow(() -> new UnauthorizedException("No account found with this email or phone."));
 
             if (user.getPasswordHash() == null) {
                 throw new UnauthorizedException(
-                        "This account was created via social login. Please use Firebase sign-in.");
+                        "This account was created via social login. Please sign in with Google/Firebase.");
             }
             if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
                 throw new UnauthorizedException("Incorrect password. Please try again.");
             }
         } else {
-            throw new UnauthorizedException("Please provide either a Firebase ID token or email + password.");
+            throw new UnauthorizedException("Please provide either a Firebase ID token or email/phone + password.");
         }
 
         if (!user.isActive()) {
@@ -142,7 +209,7 @@ public class AuthService {
         }
 
         String jti = jwtUtil.extractJti(refreshToken);
-        if (redisTemplate != null) {
+        if (redisTemplate != null && jti != null) {
             Boolean isBlacklisted = (Boolean) redisTemplate.opsForValue().get("blacklist:" + jti);
             if (Boolean.TRUE.equals(isBlacklisted)) {
                 throw new UnauthorizedException("Token has been invalidated.");
@@ -168,7 +235,6 @@ public class AuthService {
 
         log.info("Password reset requested for user: {}", user.getEmail());
         // In production: send email/SMS with reset code or token.
-        // For development/mock: verification is logged and handled in resetPassword.
     }
 
     @Transactional
@@ -186,18 +252,31 @@ public class AuthService {
         log.info("Password successfully reset for user: {}", user.getEmail());
     }
 
+    @Transactional
+    public void changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isBlank()) {
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+                throw new BusinessException("INVALID_PASSWORD", "Current password does not match.");
+            }
+        }
+
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 6) {
+            throw new BusinessException("INVALID_PASSWORD", "New password must be at least 6 characters.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Password changed successfully for user: {}", user.getEmail());
+    }
+
     public AuthResponse.UserInfo getCurrentUser(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        return AuthResponse.UserInfo.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .phone(user.getPhone())
-                .fullName(user.getFullName())
-                .dob(user.getDob())
-                .role(user.getRole())
-                .build();
+        return buildUserInfo(user);
     }
 
     public AppConfigResponse getAppConfig() {
@@ -220,11 +299,51 @@ public class AuthService {
     public void logout(String accessToken) {
         if (jwtUtil.isTokenValid(accessToken)) {
             String jti = jwtUtil.extractJti(accessToken);
-            long remaining = jwtUtil.extractExpiration(accessToken).getTime() - System.currentTimeMillis();
-            if (remaining > 0 && redisTemplate != null) {
+            Date expiration = jwtUtil.extractExpiration(accessToken);
+            long remaining = expiration != null ? expiration.getTime() - System.currentTimeMillis() : 0;
+            if (remaining > 0 && redisTemplate != null && jti != null) {
                 redisTemplate.opsForValue().set("blacklist:" + jti, true, Duration.ofMillis(remaining));
             }
         }
+        SecurityContextHolder.clearContext();
+    }
+
+    private AuthResponse.UserInfo buildUserInfo(User user) {
+        UUID profileId = null;
+        Boolean verified = null;
+        String specialty = null;
+        String profileImage = null;
+
+        if (user.getRole() == User.Role.PATIENT) {
+            var patientOpt = patientProfileRepository.findByUserId(user.getId());
+            if (patientOpt.isPresent()) {
+                var profile = patientOpt.get();
+                profileId = profile.getId();
+                profileImage = profile.getProfileImage();
+            }
+        } else if (user.getRole() == User.Role.DOCTOR) {
+            var docOpt = doctorRepository.findByUserId(user.getId());
+            if (docOpt.isPresent()) {
+                var doctor = docOpt.get();
+                profileId = doctor.getId();
+                verified = doctor.isVerified();
+                specialty = doctor.getSpecialty();
+                profileImage = doctor.getProfileImage();
+            }
+        }
+
+        return AuthResponse.UserInfo.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .fullName(user.getFullName())
+                .dob(user.getDob())
+                .role(user.getRole())
+                .profileId(profileId)
+                .verified(verified)
+                .specialty(specialty)
+                .profileImage(profileImage)
+                .build();
     }
 
     private AuthResponse buildAuthResponse(User user) {
@@ -234,7 +353,6 @@ public class AuthService {
         String access = jwtUtil.generateAccessToken(user.getId().toString(), claims);
         String refresh = jwtUtil.generateRefreshToken(user.getId().toString());
 
-        // Cache session if Redis is available
         if (redisTemplate != null) {
             redisTemplate.opsForValue().set(
                     "session:" + user.getId(),
@@ -246,14 +364,7 @@ public class AuthService {
                 .accessToken(access)
                 .refreshToken(refresh)
                 .expiresIn(ACCESS_EXPIRY_SECONDS)
-                .user(AuthResponse.UserInfo.builder()
-                        .id(user.getId())
-                        .email(user.getEmail())
-                        .phone(user.getPhone())
-                        .fullName(user.getFullName())
-                        .dob(user.getDob())
-                        .role(user.getRole())
-                        .build())
+                .user(buildUserInfo(user))
                 .build();
     }
 }

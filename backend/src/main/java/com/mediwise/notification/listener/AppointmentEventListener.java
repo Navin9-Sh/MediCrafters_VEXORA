@@ -2,21 +2,21 @@ package com.mediwise.notification.listener;
 
 import com.mediwise.appointment.event.AppointmentBookedEvent;
 import com.mediwise.appointment.model.Appointment;
-import com.mediwise.auth.model.User;
-import com.mediwise.auth.repository.UserRepository;
+import com.mediwise.doctor.repository.DoctorRepository;
 import com.mediwise.notification.model.Notification;
 import com.mediwise.notification.repository.NotificationRepository;
 import com.mediwise.notification.service.FirebasePushService;
+import com.mediwise.profile.repository.PatientProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -25,8 +25,9 @@ public class AppointmentEventListener {
 
     private final NotificationRepository notificationRepository;
     private final FirebasePushService fcmService;
-    private final UserRepository userRepository;
-    
+    private final PatientProfileRepository patientProfileRepository;
+    private final DoctorRepository doctorRepository;
+
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
@@ -34,42 +35,54 @@ public class AppointmentEventListener {
     @EventListener
     public void onAppointmentBooked(AppointmentBookedEvent event) {
         Appointment appt = event.getAppointment();
+        if (appt == null) return;
 
         // Notify patient
-        saveAndPush(
-                appt.getPatientId(),
-                "Appointment Confirmed 🗓️",
-                "Your appointment has been booked successfully.",
-                "APPOINTMENT_BOOKED",
-                appt.getId()
-        );
+        if (appt.getPatientId() != null) {
+            patientProfileRepository.findById(appt.getPatientId()).ifPresent(patient -> {
+                saveAndPush(
+                        patient.getUserId(),
+                        "Appointment Scheduled",
+                        "Your appointment has been scheduled successfully.",
+                        "APPOINTMENT_BOOKED",
+                        appt.getId()
+                );
+            });
+        }
 
         // Notify doctor
-        saveAndPush(
-                appt.getDoctorId(),
-                "New Appointment Request 👨‍⚕️",
-                "You have a new appointment request from a patient.",
-                "NEW_APPOINTMENT",
-                appt.getId()
-        );
+        if (appt.getDoctorId() != null) {
+            doctorRepository.findById(appt.getDoctorId()).ifPresent(doctor -> {
+                saveAndPush(
+                        doctor.getUserId(),
+                        "New Appointment Request",
+                        "You have a new appointment request from a patient.",
+                        "NEW_APPOINTMENT",
+                        appt.getId()
+                );
+            });
+        }
     }
 
-    private void saveAndPush(java.util.UUID userId, String title, String body,
-                              String type, java.util.UUID refId) {
-        // Save to DB
-        notificationRepository.save(Notification.builder()
-                .userId(userId)
-                .title(title)
-                .body(body)
-                .type(type)
-                .refId(refId)
-                .build());
+    private void saveAndPush(UUID userId, String title, String body,
+                             String type, UUID refId) {
+        if (userId == null) return;
+        try {
+            notificationRepository.save(Notification.builder()
+                    .userId(userId)
+                    .title(title)
+                    .body(body)
+                    .type(type)
+                    .refId(refId)
+                    .build());
 
-        // Push via FCM
-        String fcmToken = redisTemplate != null ? (String) redisTemplate.opsForValue().get("fcm_token:" + userId) : null;
-        if (fcmToken != null) {
-            fcmService.sendToToken(fcmToken, title, body,
-                    Map.of("type", type, "refId", refId.toString()));
+            String fcmToken = redisTemplate != null ? (String) redisTemplate.opsForValue().get("fcm_token:" + userId) : null;
+            if (fcmToken != null) {
+                fcmService.sendToToken(fcmToken, title, body,
+                        Map.of("type", type, "refId", refId != null ? refId.toString() : ""));
+            }
+        } catch (Exception e) {
+            log.warn("Failed to deliver notification to user {}: {}", userId, e.getMessage());
         }
     }
 }

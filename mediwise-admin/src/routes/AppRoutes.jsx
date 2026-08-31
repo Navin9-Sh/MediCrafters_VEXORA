@@ -11,7 +11,6 @@ import AssignDoctor from '../pages/AssignDoctor'
 import AuditLogs from '../pages/AuditLogs'
 import LoadingSpinner from '../components/common/LoadingSpinner'
 
-/** Redirects to login if not authenticated */
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth()
   if (loading) return <LoadingSpinner fullScreen />
@@ -19,7 +18,6 @@ function ProtectedRoute({ children }) {
   return children
 }
 
-/** Redirects authenticated admins away from login page */
 function PublicRoute({ children }) {
   const { isAuthenticated, loading } = useAuth()
   if (loading) return <LoadingSpinner fullScreen />
@@ -30,10 +28,8 @@ function PublicRoute({ children }) {
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* Public */}
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
-      {/* Protected Admin Routes */}
       <Route path="/" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="doctors" element={<Doctors />} />
@@ -44,7 +40,6 @@ export default function AppRoutes() {
         <Route path="audit-logs" element={<AuditLogs />} />
       </Route>
 
-      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

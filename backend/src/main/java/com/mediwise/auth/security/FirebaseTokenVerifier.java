@@ -39,4 +39,33 @@ public class FirebaseTokenVerifier {
         Object phoneNumber = token.getClaims().get("phone_number");
         return Boolean.TRUE.equals(verified) || (phoneNumber != null && !phoneNumber.toString().isBlank());
     }
+
+    public String extractEmail(FirebaseToken token) {
+        if (token.getEmail() != null && !token.getEmail().isBlank()) {
+            return token.getEmail().trim().toLowerCase();
+        }
+        Object emailClaim = token.getClaims().get("email");
+        return emailClaim != null ? emailClaim.toString().trim().toLowerCase() : null;
+    }
+
+    public String extractName(FirebaseToken token) {
+        if (token.getName() != null && !token.getName().isBlank()) {
+            return token.getName().trim();
+        }
+        Object nameClaim = token.getClaims().get("name");
+        return nameClaim != null ? nameClaim.toString().trim() : null;
+    }
+
+    public String extractPicture(FirebaseToken token) {
+        if (token.getPicture() != null && !token.getPicture().isBlank()) {
+            return token.getPicture().trim();
+        }
+        Object pictureClaim = token.getClaims().get("picture");
+        return pictureClaim != null ? pictureClaim.toString().trim() : null;
+    }
+
+    public String extractPhone(FirebaseToken token) {
+        Object phoneClaim = token.getClaims().get("phone_number");
+        return phoneClaim != null ? phoneClaim.toString().trim() : null;
+    }
 }

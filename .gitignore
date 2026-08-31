@@ -1,4 +1,4 @@
-# IDEs
+# IDEs & Editors
 .idea/
 .vscode/
 *.iml
@@ -6,8 +6,10 @@
 *.ipr
 *.swp
 *.swo
+.agents/
+.gemini/
 
-# OS generated files
+# Operating System Files
 .DS_Store
 .DS_Store?
 ._*
@@ -15,42 +17,43 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Android/Kotlin
-android-app/.gradle/
-android-app/build/
-android-app/*/build/
-android-app/local.properties
-android-app/.kotlin/
-android-app/captures/
-android-app/.externalNativeBuild/
-android-app/.cxx/
-
-# ─── CREDENTIALS & SECRETS (never commit these) ───────────────────────────
-# Firebase service account key (backend)
-backend/src/main/resources/firebase-service-account.json
-# Google services config (Android — contains API keys)
-android-app/app/google-services.json
-**/google-services.json
-# Backend environment files with real secrets
-backend/.env
-backend/.env.local
-# Admin panel environment files
-mediwise-admin/.env
-mediwise-admin/.env.local
-# Any generic .env files at root level
+# Secrets & Environment Variables
 .env
-.env.local
-.env.production
-# Keystore files (Android signing)
+.env.*
+!.env.example
+!.env.template
+secrets/
+credentials/
+credentials
+.aws/
+
+# Certificates, Keys & Cloud Credentials
+**/firebase-service-account*.json
+**/firebase-adminsdk*.json
+**/google-services.json
+**/*service-account*.json
+**/credentials.json
+**/client_secret*.json
 *.jks
 *.keystore
 *.p12
 *.pfx
-# ──────────────────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.crt
+*.pub
+*.der
 
-# Java/Maven (Backend)
+# Backend (Java & Maven)
 backend/target/
+target/
+*.class
+*.war
+*.ear
+*.jar
+!backend/.mvn/wrapper/maven-wrapper.jar
 backend/*.log
 backend/pom.xml.tag
 backend/pom.xml.releaseBackup
@@ -61,11 +64,39 @@ backend/dependency-reduced-pom.xml
 backend/buildNumber.properties
 backend/.mvn/timing.properties
 
-# Admin Panel (React/Vite)
+# Frontend (Node & Vite)
 mediwise-admin/node_modules/
+node_modules/
 mediwise-admin/dist/
+dist/
+.eslintcache
+.stylelintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Logs and databases
+# Android
+android-app/.gradle/
+.gradle/
+android-app/build/
+android-app/*/build/
+build/
+android-app/local.properties
+local.properties
+android-app/.kotlin/
+android-app/captures/
+android-app/.externalNativeBuild/
+android-app/.cxx/
+*.apk
+*.aab
+
+# Logs & Database Files
 *.log
+logs/
 *.sqlite
+*.sqlite3
 *.db
+*.dump
+*.sql.gz
+
