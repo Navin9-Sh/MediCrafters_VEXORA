@@ -54,7 +54,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         // 1. Try verifying as MediWise internal JWT token
-        if (jwtUtil.isTokenValid(token)) {
+        // 1. Try verifying as MediWise internal JWT token
+        if (jwtUtil.isTokenValid(token) && jwtUtil.isAccessToken(token)) {
             try {
                 String jti = jwtUtil.extractJti(token);
                 if (redisTemplate != null && jti != null) {

@@ -1,7 +1,6 @@
 package com.mediwise.config;
 
 import com.mediwise.auth.security.JwtAuthFilter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,9 +27,9 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private JwtAuthFilter jwtAuthFilter;
+    private final JwtAuthFilter jwtAuthFilter;
 
-    public SecurityConfig(@Autowired(required = false) JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
     }
 
@@ -63,12 +62,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/analytics/**").hasAnyRole("DOCTOR", "ADMIN")
                         .requestMatchers("/api/v1/doctors/*/schedule/**").hasAnyRole("DOCTOR", "ADMIN")
                         .anyRequest().authenticated()
-                );
-
-        // 👇 ADD FILTER ONLY IF AVAILABLE
-        if (jwtAuthFilter != null) {
-            http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
-        }
+                )
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
