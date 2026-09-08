@@ -1,4 +1,3 @@
-<div align="center">
 
 # MediWise
 
@@ -67,6 +66,37 @@ External services: Firebase (Auth · FCM) · Razorpay (payments) · AWS S3 (medi
 - **Redis (Redisson)** — short-lived state: slot locks during the booking flow, and TTL-based caches for doctor search and slot availability.
 
 ---
+## 📱 Application Demo
+
+### Android App
+
+<div align="center">
+
+<img src="https://github.com/user-attachments/assets/a339b65e-d83b-448d-96c4-230a649add5a" width="240" alt="MediWise Android App Screenshot" />
+<img src="https://github.com/user-attachments/assets/712d2238-982c-45bd-8ef5-8c74a627dd97" width="240" alt="MediWise Android App Screenshot" />
+<img src="https://github.com/user-attachments/assets/82c6c5bc-624d-4123-bf63-8a36c3c602c3" width="240" alt="MediWise Android App Screenshot" />
+<img src="https://github.com/user-attachments/assets/a2ac68f7-4f04-4495-9548-4359a3998e4f" width="240" alt="MediWise Android App Screenshot" />
+<img src="https://github.com/user-attachments/assets/171710a3-65f4-4af7-a9f2-fc0f1bfddcfa" width="240" alt="MediWise Android App Screenshot" />
+
+</div>
+
+---
+
+## 🖥️ Admin Dashboard
+
+<div align="center">
+
+<img src="https://github.com/user-attachments/assets/73740005-8e9a-44d2-905a-c76dc13eab7b" width="600" alt="MediWise Admin Dashboard" />
+<img src="https://github.com/user-attachments/assets/7eb8d9cb-c39d-4aa6-a74f-8607b5062cfd" width="600" alt="MediWise Admin Dashboard" />
+
+</div>
+
+
+
+
+
+
+
 
 ## Feature Highlights
 
